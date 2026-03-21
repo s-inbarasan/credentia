@@ -1,0 +1,72 @@
+{
+  "entities": {
+    "UserProfile": {
+      "title": "User Profile",
+      "description": "Stores user-specific security data and preferences.",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "description": "Firebase Auth UID" },
+        "email": { "type": "string", "description": "User email" },
+        "riskScore": { "type": "number", "description": "Current calculated risk score" },
+        "lastAnalyzed": { "type": "string", "format": "date-time", "description": "Last time an analysis was performed" },
+        "preferences": { "type": "object", "description": "User app preferences" }
+      },
+      "required": ["uid", "email"]
+    },
+    "PublicProfile": {
+      "title": "Public Profile",
+      "description": "Publicly visible user data for leaderboard.",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "displayName": { "type": "string" },
+        "points": { "type": "number" },
+        "badges": { "type": "array", "items": { "type": "string" } },
+        "stats": { "type": "object" }
+      },
+      "required": ["uid", "displayName", "points", "badges"]
+    },
+    "NewsItem": {
+      "title": "Cyber News",
+      "description": "Daily cybersecurity news updates.",
+      "type": "object",
+      "properties": {
+        "title": { "type": "string" },
+        "summary": { "type": "string" },
+        "url": { "type": "string" },
+        "date": { "type": "string", "format": "date" },
+        "category": { "type": "string" }
+      },
+      "required": ["title", "summary", "date"]
+    },
+    "ChatMessage": {
+      "title": "Chat Message",
+      "description": "A single message in the AI chat history.",
+      "type": "object",
+      "properties": {
+        "role": { "type": "string", "enum": ["user", "ai"] },
+        "text": { "type": "string" },
+        "timestamp": { "type": "string", "format": "date-time" }
+      },
+      "required": ["role", "text", "timestamp"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "UserProfile",
+      "description": "User profile documents"
+    },
+    "/users/{userId}/messages/{messageId}": {
+      "schema": "ChatMessage",
+      "description": "Chat history for the user"
+    },
+    "/public_profiles/{userId}": {
+      "schema": "PublicProfile",
+      "description": "Public profiles for leaderboard"
+    },
+    "/news": {
+      "schema": "NewsItem",
+      "description": "Global cyber news collection"
+    }
+  }
+}

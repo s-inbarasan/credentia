@@ -1,0 +1,112 @@
+// ===============================================================
+// Assumed Data Model
+// ===============================================================
+//
+// Collection: users
+// Document ID: {userId}
+// Fields:
+//   - uid: string (required) - Firebase Auth UID
+//   - email: string (required) - User email
+//   - riskScore: number (optional) - Current risk score
+//   - lastAnalyzed: string (optional) - ISO date string
+//
+// Collection: users/{userId}/messages
+// Document ID: auto-generated
+// Fields:
+//   - role: string (required) - 'user' or 'ai'
+//   - text: string (required)
+//   - timestamp: string (required) - ISO date string
+//
+// Collection: public_profiles
+// Document ID: {userId}
+// Fields:
+//   - uid: string (required)
+//   - displayName: string (required)
+//   - points: number (required)
+//   - badges: list (required)
+//
+// Collection: news
+// Document ID: auto-generated
+// Fields:
+//   - title: string (required)
+//   - summary: string (required)
+//   - url: string (optional)
+//   - date: string (required)
+//   - category: string (optional)
+//
+// ===============================================================
+
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // Helper Functions
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    function isValidUser(data) {
+      return data.keys().hasAll(['uid', 'email']) &&
+             data.uid is string &&
+             data.email is string &&
+             (!('riskScore' in data) || data.riskScore is number) &&
+             (!('lastAnalyzed' in data) || data.lastAnalyzed is string) &&
+             (!('preferences' in data) || data.preferences is map);
+    }
+
+    function isValidPublicProfile(data) {
+      return data.keys().hasAll(['uid', 'displayName', 'points', 'badges']) &&
+             data.uid is string &&
+             data.displayName is string &&
+             data.points is number &&
+             data.badges is list &&
+             (!('photoURL' in data) || data.photoURL is string) &&
+             (!('stats' in data) || data.stats is map);
+    }
+
+    function isValidNews(data) {
+      return data.keys().hasAll(['title', 'summary', 'date']) &&
+             data.title is string && data.title.size() < 200 &&
+             data.summary is string && data.summary.size() < 1000 &&
+             data.date is string;
+    }
+
+    function isValidMessage(data) {
+      return data.keys().hasAll(['role', 'text', 'timestamp']) &&
+             data.role in ['user', 'ai'] &&
+             data.text is string && data.text.size() < 5000 &&
+             data.timestamp is string;
+    }
+
+    // User Profiles
+    match /users/{userId} {
+      allow read: if isOwner(userId);
+      allow create: if isOwner(userId) && isValidUser(request.resource.data);
+      allow update: if isOwner(userId) && isValidUser(request.resource.data);
+      
+      match /messages/{messageId} {
+        allow read: if isOwner(userId);
+        allow create: if isOwner(userId) && isValidMessage(request.resource.data);
+        allow update: if isOwner(userId) && isValidMessage(request.resource.data);
+        allow delete: if isOwner(userId);
+      }
+    }
+
+    // Public Profiles (Leaderboard)
+    match /public_profiles/{userId} {
+      allow read: if isAuthenticated();
+      allow create: if isOwner(userId) && isValidPublicProfile(request.resource.data);
+      allow update: if isOwner(userId) && isValidPublicProfile(request.resource.data);
+    }
+
+    // News (Publicly readable, but no one can write via client)
+    match /news/{newsId} {
+      allow read: if true;
+      allow write: if false; // Only via Admin SDK/Console
+    }
+  }
+}
