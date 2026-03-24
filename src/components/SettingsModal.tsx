@@ -16,9 +16,12 @@ interface SettingsModalProps {
   };
   onSavePreferences: (prefs: any) => void;
   onExportData: () => void;
+  isExporting: boolean;
+  isResetting: boolean;
+  isSavingSettings: boolean;
 }
 
-export function SettingsModal({ isOpen, onClose, onResetProgress, preferences, onSavePreferences, onExportData }: SettingsModalProps) {
+export function SettingsModal({ isOpen, onClose, onResetProgress, preferences, onSavePreferences, onExportData, isExporting, isResetting, isSavingSettings }: SettingsModalProps) {
   const [darkMode, setDarkMode] = useState(preferences.darkMode);
   const [highContrast, setHighContrast] = useState(preferences.highContrast);
   const [notifications, setNotifications] = useState(preferences.notifications);
@@ -75,8 +78,16 @@ export function SettingsModal({ isOpen, onClose, onResetProgress, preferences, o
           >
             <div className="flex items-center justify-between mb-6">
               <h2 className="text-2xl font-bold">Settings</h2>
-              <button onClick={handleSave} className="p-2 hover:bg-white/10 rounded-full transition-colors">
-                <X className="w-6 h-6" />
+              <button 
+                onClick={handleSave} 
+                disabled={isSavingSettings}
+                className="p-2 hover:bg-white/10 rounded-full transition-colors disabled:opacity-50"
+              >
+                {isSavingSettings ? (
+                  <div className="w-6 h-6 border-2 border-white/20 border-t-white rounded-full animate-spin" />
+                ) : (
+                  <X className="w-6 h-6" />
+                )}
               </button>
             </div>
 
@@ -150,10 +161,11 @@ export function SettingsModal({ isOpen, onClose, onResetProgress, preferences, o
                 <h3 className="text-sm font-bold text-cyber-blue uppercase tracking-wider mb-4">Privacy</h3>
                 <button 
                   onClick={handleExportData}
-                  className="w-full flex items-center justify-center gap-2 bg-white/5 hover:bg-white/10 text-white py-3 rounded-xl transition-colors border border-white/10"
+                  disabled={isExporting}
+                  className="w-full flex items-center justify-center gap-2 bg-white/5 hover:bg-white/10 text-white py-3 rounded-xl transition-colors border border-white/10 disabled:opacity-50"
                 >
                   <Download className="w-5 h-5" />
-                  Export My Data
+                  {isExporting ? 'Exporting...' : 'Export My Data'}
                 </button>
               </section>
 
@@ -197,9 +209,10 @@ export function SettingsModal({ isOpen, onClose, onResetProgress, preferences, o
                     </button>
                     <button 
                       onClick={handleResetConfirm}
-                      className="flex-1 py-3 rounded-xl bg-red-500 hover:bg-red-600 text-white transition-colors font-bold"
+                      disabled={isResetting}
+                      className="flex-1 py-3 rounded-xl bg-red-500 hover:bg-red-600 text-white transition-colors font-bold disabled:opacity-50"
                     >
-                      Yes, Reset
+                      {isResetting ? 'Resetting...' : 'Yes, Reset'}
                     </button>
                   </div>
                 </div>

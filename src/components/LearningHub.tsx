@@ -3,10 +3,10 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { BookOpen, Shield, Lock, Key, Eye, AlertTriangle, Server, Globe, Database, Cpu, Wifi, CheckCircle, ArrowLeft, ChevronRight, PlayCircle } from 'lucide-react';
 import { cn } from '../utils/cn';
 import { LEARNING_TOPICS } from '../data/learningTopics';
-import { Topic, PublicProfile } from '../types';
+import { Topic, UserDocument } from '../types';
 
 interface LearningHubProps {
-  publicProfile: PublicProfile | null;
+  userDoc: UserDocument | null;
   onCompleteTopic: (topicId: string, xpReward: number) => void;
   onPassQuiz: (topicId: string, score: number) => void;
 }
@@ -15,7 +15,7 @@ const ICONS: Record<string, React.ElementType> = {
   Shield, Lock, Key, Eye, AlertTriangle, Server, Globe, Database, Cpu, Wifi, BookOpen
 };
 
-export function LearningHub({ publicProfile, onCompleteTopic, onPassQuiz }: LearningHubProps) {
+export function LearningHub({ userDoc, onCompleteTopic, onPassQuiz }: LearningHubProps) {
   const [selectedTopic, setSelectedTopic] = useState<Topic | null>(null);
   const [activeQuiz, setActiveQuiz] = useState<Topic | null>(null);
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
@@ -24,8 +24,8 @@ export function LearningHub({ publicProfile, onCompleteTopic, onPassQuiz }: Lear
   const [selectedAnswer, setSelectedAnswer] = useState<number | null>(null);
   const [isAnswerCorrect, setIsAnswerCorrect] = useState<boolean | null>(null);
 
-  const completedTopics = publicProfile?.completedTopics || [];
-  const quizScores = publicProfile?.quizScores || {};
+  const completedTopics = userDoc?.completedTopics || [];
+  const quizScores = userDoc?.quizScores || {};
 
   const handleTopicClick = (topic: Topic) => {
     setSelectedTopic(topic);

@@ -38,9 +38,9 @@ import {
 import { motion, AnimatePresence } from 'motion/react';
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
-import { Message, RiskState, PasswordAnalysis, PhishingAnalysis, UserProfile, PublicProfile, ChatSession } from './types';
+import { Message, RiskState, PasswordAnalysis, PhishingAnalysis, UserDocument, ChatSession } from './types';
 import { analyzePassword, analyzePhishing } from './utils/analyzer';
-import { getCyberResponse, analyzeThreat, ThreatAnalysisResult } from './services/geminiService';
+import { getCyberResponse } from './services/geminiService';
 import { LearningHub } from './components/LearningHub';
 import { SimulationCenter } from './components/SimulationCenter';
 import { SettingsModal } from './components/SettingsModal';
@@ -104,28 +104,35 @@ interface AppUser {
 }
 
 export default function App() {
-  const [activeTab, setActiveTab] = useState<'home' | 'tools' | 'learningHub' | 'profile' | 'leaderboard'>('home');
+  const [activeTab, setActiveTab] = useState<'home' | 'tools' | 'learningHub' | 'profile'>('home');
   const [user, setUser] = useState<AppUser | null>(null);
   const [isGuest, setIsGuest] = useState(false);
   const [showLogin, setShowLogin] = useState(false);
   const [showChatPanel, setShowChatPanel] = useState(false);
-  const [profile, setProfile] = useState<UserProfile | null>(null);
-  const [publicProfile, setPublicProfile] = useState<PublicProfile | null>(null);
-  const [leaderboard, setLeaderboard] = useState<PublicProfile[]>([]);
+  const [userDoc, setUserDoc] = useState<UserDocument | null>(null);
   const [loading, setLoading] = useState(true);
   const [showBadgeNotification, setShowBadgeNotification] = useState<string | null>(null);
   const [showSettingsSaved, setShowSettingsSaved] = useState(false);
   const [showSimulationCenter, setShowSimulationCenter] = useState(false);
   const [showSettingsModal, setShowSettingsModal] = useState(false);
+  const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
+  const [isSavingProfile, setIsSavingProfile] = useState(false);
+  const [isResetting, setIsResetting] = useState(false);
+  const [isExporting, setIsExporting] = useState(false);
+
+  const [isSavingSettings, setIsSavingSettings] = useState(false);
 
   const handleSaveSettings = async (newPrefs: typeof preferences) => {
-    if (user && profile) {
+    if (user && userDoc) {
+      setIsSavingSettings(true);
       try {
-        await setDoc(doc(db, 'userProfiles', user.uid), { ...profile, preferences: newPrefs }, { merge: true });
+        await setDoc(doc(db, 'users', user.uid), { preferences: newPrefs }, { merge: true });
         setShowSettingsSaved(true);
         setTimeout(() => setShowSettingsSaved(false), 3000);
       } catch (error) {
-        handleFirestoreError(error, OperationType.UPDATE, 'userProfiles');
+        handleFirestoreError(error, OperationType.UPDATE, 'users');
+      } finally {
+        setIsSavingSettings(false);
       }
     }
   };
@@ -147,115 +154,115 @@ export default function App() {
   };
 
   const handleCompleteTopic = async (topicId: string, xpReward: number) => {
-    if (!user || !publicProfile) return;
+    if (!user || !userDoc) return;
     
-    const currentTopics = publicProfile.completedTopics || [];
+    const currentTopics = userDoc.completedTopics || [];
     if (currentTopics.includes(topicId)) return;
     
     const newTopics = [...currentTopics, topicId];
-    const newPoints = publicProfile.points + xpReward;
+    const newPoints = userDoc.xp + xpReward;
     
     const newStats = {
-      ...publicProfile.stats,
-      topicsCompleted: (publicProfile.stats?.topicsCompleted || 0) + 1,
-      actionsTaken: (publicProfile.stats?.actionsTaken || 0) + 1
+      ...userDoc.stats,
+      topicsCompleted: (userDoc.stats?.topicsCompleted || 0) + 1,
+      actionsTaken: (userDoc.stats?.actionsTaken || 0) + 1
     };
     
-    const newBadges = checkNewBadges(newStats, publicProfile.badges);
+    const newBadges = checkNewBadges(newStats, userDoc.badges || []);
     
     try {
       addRecentActivity(`Completed: ${topicId.replace(/_/g, ' ')}`, 'topic');
       
       const updatedProfile = {
-        ...publicProfile,
+        ...userDoc,
         completedTopics: newTopics,
-        points: newPoints,
+        xp: newPoints,
         stats: newStats,
-        badges: [...publicProfile.badges, ...newBadges]
+        badges: [...(userDoc.badges || []), ...newBadges]
       };
       
-      await setDoc(doc(db, 'publicProfiles', user.uid), updatedProfile);
+      await setDoc(doc(db, 'users', user.uid), updatedProfile);
       
       if (newBadges.length > 0) {
         setShowBadgeNotification(newBadges[0]);
         setTimeout(() => setShowBadgeNotification(null), 3000);
       }
     } catch (error) {
-      handleFirestoreError(error, OperationType.UPDATE, 'publicProfiles');
+      handleFirestoreError(error, OperationType.UPDATE, 'users');
     }
   };
 
   const handlePassQuiz = async (topicId: string, score: number) => {
-    if (!user || !publicProfile) return;
+    if (!user || !userDoc) return;
     
-    const currentScores = publicProfile.quizScores || {};
+    const currentScores = userDoc.quizScores || {};
     const newScores = { ...currentScores, [topicId]: Math.max(score, currentScores[topicId] || 0) };
     
     const newStats = {
-      ...publicProfile.stats,
-      quizzesPassed: (publicProfile.stats?.quizzesPassed || 0) + 1,
-      actionsTaken: (publicProfile.stats?.actionsTaken || 0) + 1
+      ...userDoc.stats,
+      quizzesPassed: (userDoc.stats?.quizzesPassed || 0) + 1,
+      actionsTaken: (userDoc.stats?.actionsTaken || 0) + 1
     };
     
-    const newBadges = checkNewBadges(newStats, publicProfile.badges);
+    const newBadges = checkNewBadges(newStats, userDoc.badges || []);
     
     try {
       addRecentActivity(`Passed Quiz: ${topicId.replace(/_/g, ' ')}`, 'quiz');
       
       const updatedProfile = {
-        ...publicProfile,
+        ...userDoc,
         quizScores: newScores,
         stats: newStats,
-        badges: [...publicProfile.badges, ...newBadges]
+        badges: [...(userDoc.badges || []), ...newBadges]
       };
       
-      await setDoc(doc(db, 'publicProfiles', user.uid), updatedProfile);
+      await setDoc(doc(db, 'users', user.uid), updatedProfile);
       
       if (newBadges.length > 0) {
         setShowBadgeNotification(newBadges[0]);
         setTimeout(() => setShowBadgeNotification(null), 3000);
       }
     } catch (error) {
-      handleFirestoreError(error, OperationType.UPDATE, 'publicProfiles');
+      handleFirestoreError(error, OperationType.UPDATE, 'users');
     }
   };
 
   const handleCompleteSimulation = async (scenarioId: string, xpReward: number, score: number) => {
-    if (!user || !publicProfile) return;
+    if (!user || !userDoc) return;
     
-    const currentScores = publicProfile.simulationScores || {};
+    const currentScores = userDoc.simulationScores || {};
     if (currentScores[scenarioId] === 100) return; // Already passed perfectly
     
     const newScores = { ...currentScores, [scenarioId]: Math.max(score, currentScores[scenarioId] || 0) };
-    const newPoints = publicProfile.points + xpReward;
+    const newPoints = userDoc.xp + xpReward;
     
     const newStats = {
-      ...publicProfile.stats,
-      simulationsCompleted: (publicProfile.stats?.simulationsCompleted || 0) + 1,
-      actionsTaken: (publicProfile.stats?.actionsTaken || 0) + 1
+      ...userDoc.stats,
+      simulationsCompleted: (userDoc.stats?.simulationsCompleted || 0) + 1,
+      actionsTaken: (userDoc.stats?.actionsTaken || 0) + 1
     };
     
-    const newBadges = checkNewBadges(newStats, publicProfile.badges);
+    const newBadges = checkNewBadges(newStats, userDoc.badges || []);
     
     try {
       addRecentActivity(`Completed Simulation: ${scenarioId.replace(/_/g, ' ')}`, 'simulation');
       
       const updatedProfile = {
-        ...publicProfile,
+        ...userDoc,
         simulationScores: newScores,
-        points: newPoints,
+        xp: newPoints,
         stats: newStats,
-        badges: [...publicProfile.badges, ...newBadges]
+        badges: [...(userDoc.badges || []), ...newBadges]
       };
       
-      await setDoc(doc(db, 'publicProfiles', user.uid), updatedProfile);
+      await setDoc(doc(db, 'users', user.uid), updatedProfile);
       
       if (newBadges.length > 0) {
         setShowBadgeNotification(newBadges[0]);
         setTimeout(() => setShowBadgeNotification(null), 3000);
       }
     } catch (error) {
-      handleFirestoreError(error, OperationType.UPDATE, 'publicProfiles');
+      handleFirestoreError(error, OperationType.UPDATE, 'users');
     }
   };
 
@@ -285,9 +292,6 @@ export default function App() {
   const [phishingInput, setPhishingInput] = useState('');
   const [phishAnalysis, setPhishAnalysis] = useState<PhishingAnalysis | null>(null);
 
-  const [threatInput, setThreatInput] = useState('');
-  const [threatAnalysis, setThreatAnalysis] = useState<ThreatAnalysisResult | null>(null);
-  const [isAnalyzingThreat, setIsAnalyzingThreat] = useState(false);
   const [recentActivity, setRecentActivity] = useState<any[]>([]);
   const [chatSessions, setChatSessions] = useState<ChatSession[]>([]);
 
@@ -295,8 +299,7 @@ export default function App() {
 
   // Auth & Profile Sync
   useEffect(() => {
-    let unsubPublicProfile: () => void;
-    let unsubUserProfile: () => void;
+    let unsubUserDoc: () => void;
     let unsubChatSessions: () => void;
     let unsubRecentActivity: () => void;
 
@@ -316,70 +319,53 @@ export default function App() {
           actionsTaken: 0,
           strongPasswords: 0,
           phishingDetected: 0,
-          threatsAnalyzed: 0,
           toolsUsed: [],
           simulationsCompleted: 0,
           topicsCompleted: 0,
           quizzesPassed: 0
         };
 
-        const defaultPublicProfile: PublicProfile = {
+        const defaultUserDoc: UserDocument = {
           uid: firebaseUser.uid,
-          displayName: appUser.displayName || 'User',
-          points: 0,
+          name: appUser.displayName || 'User',
+          email: appUser.email || '',
+          xp: 0,
+          level: 1,
+          createdAt: new Date().toISOString(),
+          profileImage: appUser.photoURL || '',
           badges: [],
-          photoURL: appUser.photoURL || '',
           completedTopics: [],
           quizScores: {},
           simulationScores: {},
-          stats: defaultStats
-        };
-
-        const defaultUserProfile: UserProfile = {
-          uid: firebaseUser.uid,
-          email: appUser.email || '',
+          stats: defaultStats,
           riskScore: 15,
           preferences
         };
 
-        // Initialize documents if they don't exist
+        // Initialize document if it doesn't exist
         try {
-          const publicProfileRef = doc(db, 'publicProfiles', firebaseUser.uid);
-          const publicProfileSnap = await getDoc(publicProfileRef);
-          if (!publicProfileSnap.exists()) {
-            await setDoc(publicProfileRef, defaultPublicProfile);
-          }
-
-          const userProfileRef = doc(db, 'userProfiles', firebaseUser.uid);
-          const userProfileSnap = await getDoc(userProfileRef);
-          if (!userProfileSnap.exists()) {
-            await setDoc(userProfileRef, defaultUserProfile);
+          const userDocRef = doc(db, 'users', firebaseUser.uid);
+          const userDocSnap = await getDoc(userDocRef);
+          if (!userDocSnap.exists()) {
+            await setDoc(userDocRef, defaultUserDoc);
           }
         } catch (error) {
-          handleFirestoreError(error, OperationType.CREATE, 'profiles');
+          handleFirestoreError(error, OperationType.CREATE, 'users');
         }
 
-        // Listen to Public Profile
-        unsubPublicProfile = onSnapshot(doc(db, 'publicProfiles', firebaseUser.uid), (docSnap) => {
+        // Listen to User Document
+        unsubUserDoc = onSnapshot(doc(db, 'users', firebaseUser.uid), (docSnap) => {
           if (docSnap.exists()) {
-            const data = docSnap.data() as PublicProfile;
-            setPublicProfile(data);
-            setEditDisplayName(data.displayName);
-            setEditPhotoURL(data.photoURL || '');
-          }
-        }, (error) => handleFirestoreError(error, OperationType.GET, 'publicProfiles'));
-
-        // Listen to User Profile
-        unsubUserProfile = onSnapshot(doc(db, 'userProfiles', firebaseUser.uid), (docSnap) => {
-          if (docSnap.exists()) {
-            const data = docSnap.data() as UserProfile;
-            setProfile(data);
+            const data = docSnap.data() as UserDocument;
+            setUserDoc(data);
+            setEditDisplayName(data.name);
+            setEditPhotoURL(data.profileImage || '');
             setRiskScore(data.riskScore);
             if (data.preferences) {
               setPreferences(data.preferences);
             }
           }
-        }, (error) => handleFirestoreError(error, OperationType.GET, 'userProfiles'));
+        }, (error) => handleFirestoreError(error, OperationType.GET, 'users'));
 
         // Listen to Chat Sessions
         const chatSessionsQuery = query(collection(db, 'users', firebaseUser.uid, 'chatSessions'), orderBy('updatedAt', 'desc'));
@@ -397,13 +383,11 @@ export default function App() {
 
       } else {
         setUser(null);
-        setProfile(null);
-        setPublicProfile(null);
+        setUserDoc(null);
         setRiskScore(15);
         setRecentActivity([]);
         setChatSessions([]);
-        if (unsubPublicProfile) unsubPublicProfile();
-        if (unsubUserProfile) unsubUserProfile();
+        if (unsubUserDoc) unsubUserDoc();
         if (unsubChatSessions) unsubChatSessions();
         if (unsubRecentActivity) unsubRecentActivity();
       }
@@ -412,42 +396,28 @@ export default function App() {
 
     return () => {
       unsubscribe();
-      if (unsubPublicProfile) unsubPublicProfile();
-      if (unsubUserProfile) unsubUserProfile();
+      if (unsubUserDoc) unsubUserDoc();
       if (unsubChatSessions) unsubChatSessions();
       if (unsubRecentActivity) unsubRecentActivity();
     };
   }, []);
 
-  // Fetch Leaderboard
-  useEffect(() => {
-    if (activeTab === 'leaderboard') {
-      const q = query(collection(db, 'publicProfiles'), orderBy('points', 'desc'), limit(50));
-      const unsubscribe = onSnapshot(q, (snapshot) => {
-        const profiles = snapshot.docs.map(doc => doc.data() as PublicProfile);
-        setLeaderboard(profiles);
-      }, (error) => handleFirestoreError(error, OperationType.GET, 'publicProfiles'));
-      return () => unsubscribe();
-    }
-  }, [activeTab]);
-
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [isTyping]);
 
-  const trackAction = async (pointsToAdd: number, actionType: keyof NonNullable<PublicProfile['stats']>, toolName?: string) => {
-    if (!user || !publicProfile) return;
+  const trackAction = async (pointsToAdd: number, actionType: keyof NonNullable<UserDocument['stats']>, toolName?: string) => {
+    if (!user || !userDoc) return;
     
-    let newPoints = publicProfile.points + pointsToAdd;
-    let newBadges = [...publicProfile.badges];
+    let newPoints = userDoc.xp + pointsToAdd;
+    let newBadges = [...(userDoc.badges || [])];
     
     // Initialize stats if not present
-    let stats = publicProfile.stats || {
+    let stats = userDoc.stats || {
       aiQueries: 0,
       actionsTaken: 0,
       strongPasswords: 0,
       phishingDetected: 0,
-      threatsAnalyzed: 0,
       toolsUsed: [],
       simulationsCompleted: 0,
       topicsCompleted: 0,
@@ -475,20 +445,20 @@ export default function App() {
       setTimeout(() => setShowBadgeNotification(null), 3000);
     }
     
-    const updatedProfile = { ...publicProfile, points: newPoints, badges: newBadges, stats };
+    const updatedProfile = { ...userDoc, xp: newPoints, badges: newBadges, stats };
     try {
-      await setDoc(doc(db, 'publicProfiles', user.uid), updatedProfile);
+      await setDoc(doc(db, 'users', user.uid), updatedProfile);
     } catch (error) {
-      handleFirestoreError(error, OperationType.UPDATE, 'publicProfiles');
+      handleFirestoreError(error, OperationType.UPDATE, 'users');
     }
   };
 
   const updateRiskScore = async (newScore: number) => {
-    if (!user || !profile) return;
+    if (!user || !userDoc) return;
     try {
-      await setDoc(doc(db, 'userProfiles', user.uid), { ...profile, riskScore: newScore }, { merge: true });
+      await setDoc(doc(db, 'users', user.uid), { riskScore: newScore }, { merge: true });
     } catch (error) {
-      handleFirestoreError(error, OperationType.UPDATE, 'userProfiles');
+      handleFirestoreError(error, OperationType.UPDATE, 'users');
     }
   };
 
@@ -496,73 +466,87 @@ export default function App() {
     setShowLogin(true);
   };
 
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
+
   const handleLogout = async () => {
+    setIsLoggingOut(true);
     try {
       await signOut(auth);
       
       setUser(null);
-      setProfile(null);
-      setPublicProfile(null);
+      setUserDoc(null);
       setIsGuest(false);
       setShowLogin(false);
       setActiveTab('home');
     } catch (e) {
       console.error("Logout error:", e);
+    } finally {
+      setIsLoggingOut(false);
     }
   };
 
   const handleResetProgress = async () => {
-    if (!user || !publicProfile || !profile) return;
+    if (!user || !userDoc) return;
+    if (!window.confirm("Are you sure you want to reset all your progress? This cannot be undone.")) {
+      return;
+    }
+    setIsResetting(true);
     try {
-      const resetPublicProfile = {
-        ...publicProfile,
-        points: 0,
+      const resetUserDoc = {
+        ...userDoc,
+        xp: 0,
         badges: [],
+        riskScore: 15,
         stats: {
           aiQueries: 0,
           actionsTaken: 0,
           strongPasswords: 0,
           phishingDetected: 0,
-          threatsAnalyzed: 0,
           toolsUsed: [],
           simulationsCompleted: 0,
           topicsCompleted: 0,
           quizzesPassed: 0
         }
       };
-      await setDoc(doc(db, 'publicProfiles', user.uid), resetPublicProfile);
-      await setDoc(doc(db, 'userProfiles', user.uid), { ...profile, riskScore: 15 }, { merge: true });
+      await setDoc(doc(db, 'users', user.uid), resetUserDoc);
       alert("Progress has been reset.");
     } catch (error) {
-      handleFirestoreError(error, OperationType.UPDATE, 'publicProfiles/userProfiles');
+      handleFirestoreError(error, OperationType.UPDATE, 'users');
+    } finally {
+      setIsResetting(false);
     }
   };
 
   const handleExportData = () => {
-    if (!user || !publicProfile || !profile) return;
-    const data = {
-      userEmail: profile.email,
-      userXP: publicProfile.points,
-      userStats: publicProfile.stats,
-      userBadges: publicProfile.badges,
-      completedTopics: publicProfile.completedTopics,
-      quizScores: publicProfile.quizScores,
-      simulationScores: publicProfile.simulationScores,
-      chatSessions: chatSessions,
-      riskScore: profile.riskScore,
-      recentActivity: recentActivity,
-      preferences: profile.preferences
-    };
+    if (!user || !userDoc) return;
+    setIsExporting(true);
+    try {
+      const data = {
+        userEmail: userDoc.email,
+        userXP: userDoc.xp,
+        userStats: userDoc.stats,
+        userBadges: userDoc.badges || [],
+        completedTopics: userDoc.completedTopics || [],
+        quizScores: userDoc.quizScores || {},
+        simulationScores: userDoc.simulationScores || {},
+        chatSessions: chatSessions,
+        riskScore: userDoc.riskScore,
+        recentActivity: recentActivity,
+        preferences: userDoc.preferences
+      };
 
-    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `credentia-export-${new Date().toISOString().split('T')[0]}.json`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
+      const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `credentia-export-${new Date().toISOString().split('T')[0]}.json`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } finally {
+      setIsExporting(false);
+    }
   };
 
   // Profile Image Upload (Base64 resize)
@@ -604,18 +588,21 @@ export default function App() {
   };
 
   const saveProfile = async () => {
-    if (!user || !publicProfile) return;
+    if (!user || !userDoc) return;
+    setIsSavingProfile(true);
     try {
       const updated = {
-        ...publicProfile,
-        displayName: editDisplayName || publicProfile.displayName,
-        photoURL: editPhotoURL || publicProfile.photoURL || ''
+        ...userDoc,
+        name: editDisplayName || userDoc.name,
+        profileImage: editPhotoURL || userDoc.profileImage || ''
       };
       
-      await setDoc(doc(db, 'publicProfiles', user.uid), updated);
+      await setDoc(doc(db, 'users', user.uid), updated);
       setIsEditingProfile(false);
     } catch (error) {
-      handleFirestoreError(error, OperationType.UPDATE, 'publicProfiles');
+      handleFirestoreError(error, OperationType.UPDATE, 'users');
+    } finally {
+      setIsSavingProfile(false);
     }
   };
 
@@ -643,24 +630,6 @@ export default function App() {
       trackAction(5, 'actionsTaken', 'phishing');
     }
     addRecentActivity('Phishing Analyzed', 'tool');
-  };
-
-  const onAnalyzeThreat = async () => {
-    if (!threatInput.trim()) return;
-    setIsAnalyzingThreat(true);
-    const result = await analyzeThreat(threatInput);
-    setThreatAnalysis(result);
-    setIsAnalyzingThreat(false);
-    
-    if (result) {
-      updateRiskScore(Math.min(100, Math.max(0, riskScore + (result.suspicious ? 15 : -2))));
-      if (result.suspicious) {
-        trackAction(15, 'threatsAnalyzed', 'threat');
-      } else {
-        trackAction(5, 'actionsTaken', 'threat');
-      }
-      addRecentActivity('Threat Analyzed', 'tool');
-    }
   };
 
   const handleCopy = (id: string, text: string) => {
@@ -797,9 +766,10 @@ export default function App() {
 
                 <button 
                   onClick={saveProfile}
-                  className="w-full bg-cyber-blue text-black font-bold py-3 rounded-xl hover:bg-cyber-blue/80 transition-colors"
+                  disabled={isSavingProfile}
+                  className="w-full bg-cyber-blue text-black font-bold py-3 rounded-xl hover:bg-cyber-blue/80 transition-colors disabled:opacity-50"
                 >
-                  Save Changes
+                  {isSavingProfile ? 'Saving...' : 'Save Changes'}
                 </button>
               </div>
             </motion.div>
@@ -829,7 +799,7 @@ export default function App() {
           <div className="flex items-center gap-2">
             {user ? (
               <button 
-                onClick={handleLogout}
+                onClick={() => setShowLogoutConfirm(true)}
                 className="p-2 rounded-full hover:bg-white/5 transition-colors group relative"
                 title="Logout"
               >
@@ -855,7 +825,7 @@ export default function App() {
       <main className={cn("flex-1 overflow-y-auto scrollbar-hide p-4 space-y-6", "pb-24")}>
         {showSimulationCenter ? (
           <SimulationCenter 
-            publicProfile={publicProfile}
+            userDoc={userDoc}
             onCompleteSimulation={handleCompleteSimulation}
             onClose={() => setShowSimulationCenter(false)}
           />
@@ -869,17 +839,17 @@ export default function App() {
             <div className="flex items-center justify-between px-2">
               <div>
                 <h2 className="text-xl font-bold">
-                  {user && publicProfile ? `Welcome back, ${publicProfile.displayName}` : "Welcome, Guest"}
+                  {user && userDoc ? `Welcome back, ${userDoc.name}` : "Welcome, Guest"}
                 </h2>
                 <p className="text-xs text-white/40">
                   {user ? "Your security profile is synced" : "Login to save your progress"}
                 </p>
               </div>
-              {user && publicProfile && (
+              {user && userDoc && (
                 <div className="relative group cursor-pointer" onClick={() => setIsEditingProfile(true)}>
                   <div className="w-12 h-12 rounded-full overflow-hidden border-2 border-cyber-blue/30 group-hover:border-cyber-blue transition-colors bg-cyber-card flex items-center justify-center">
-                    {publicProfile.photoURL ? (
-                      <img src={publicProfile.photoURL} alt="Profile" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                    {userDoc.profileImage ? (
+                      <img src={userDoc.profileImage} alt="Profile" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
                     ) : (
                       <User className="w-6 h-6 text-white/30" />
                     )}
@@ -912,7 +882,7 @@ export default function App() {
               <div>
                 <p className="text-[10px] uppercase text-cyber-blue font-bold tracking-wider mb-1">Learning Progress</p>
                 <div className="flex items-end gap-1">
-                  <span className="text-3xl font-bold">{publicProfile?.completedTopics?.length || 0}</span>
+                  <span className="text-3xl font-bold">{userDoc?.completedTopics?.length || 0}</span>
                   <span className="text-xs text-white/50 mb-1">/ 50 Topics</span>
                 </div>
               </div>
@@ -920,7 +890,7 @@ export default function App() {
                 <div className="text-right">
                   <p className="text-[10px] uppercase text-cyber-yellow font-bold tracking-wider mb-1">Cyber XP</p>
                   <div className="flex items-end gap-1 justify-end">
-                    <span className="text-xl font-bold">{publicProfile?.points || 0}</span>
+                    <span className="text-xl font-bold">{userDoc?.xp || 0}</span>
                     <span className="text-xs text-white/50 mb-1">pts</span>
                   </div>
                 </div>
@@ -1123,76 +1093,6 @@ export default function App() {
                   </motion.div>
                 )}
               </div>
-
-              <div className="bg-cyber-card p-5 rounded-2xl border border-white/5 relative overflow-hidden">
-                {/* Points indicator */}
-                <div className="absolute top-4 right-4 text-[10px] text-cyber-red font-bold flex items-center gap-1 bg-cyber-red/10 px-2 py-1 rounded-full">
-                  <Star className="w-3 h-3" /> +XP
-                </div>
-                <h3 className="text-sm font-bold mb-4 flex items-center gap-2">
-                  <ShieldAlert className="w-4 h-4 text-cyber-red" />
-                  Threat Analysis
-                </h3>
-                <input 
-                  type="text"
-                  placeholder="Enter suspicious URL or IP address..."
-                  value={threatInput}
-                  onChange={(e) => setThreatInput(e.target.value)}
-                  className="w-full bg-black/30 border border-white/10 rounded-xl px-4 py-2 text-sm focus:outline-none focus:border-cyber-red/50 mb-3"
-                />
-                <button 
-                  onClick={onAnalyzeThreat}
-                  disabled={isAnalyzingThreat}
-                  className="w-full bg-cyber-red text-white font-bold py-2 rounded-xl text-sm hover:bg-cyber-red/80 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
-                >
-                  {isAnalyzingThreat ? (
-                    <>
-                      <motion.div 
-                        animate={{ rotate: 360 }}
-                        transition={{ repeat: Infinity, duration: 1, ease: "linear" }}
-                      >
-                        <Zap className="w-4 h-4" />
-                      </motion.div>
-                      Analyzing...
-                    </>
-                  ) : (
-                    "Analyze Threat"
-                  )}
-                </button>
-                {threatAnalysis && (
-                  <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="mt-4 space-y-3">
-                    <div className="flex items-center gap-2">
-                      {threatAnalysis.suspicious ? (
-                        <XCircle className="w-5 h-5 text-cyber-red" />
-                      ) : (
-                        <CheckCircle2 className="w-5 h-5 text-cyber-green" />
-                      )}
-                      <span className="text-sm font-bold">Risk: {threatAnalysis.riskLevel}</span>
-                    </div>
-                    <p className="text-xs text-white/70">{threatAnalysis.details}</p>
-                    {threatAnalysis.reasons.length > 0 && (
-                      <div className="space-y-1">
-                        <p className="text-[10px] font-bold uppercase text-white/30">Reasons</p>
-                        {threatAnalysis.reasons.map((r, i) => (
-                          <p key={i} className="text-[10px] text-cyber-red bg-cyber-red/5 p-2 rounded-lg border border-cyber-red/10">{r}</p>
-                        ))}
-                      </div>
-                    )}
-                    {threatAnalysis.recommendations.length > 0 && (
-                      <div className="pt-2">
-                        <p className="text-[10px] font-bold uppercase text-white/30 mb-2">Recommendations</p>
-                        <ul className="text-[10px] space-y-1">
-                          {threatAnalysis.recommendations.map((t, i) => (
-                            <li key={i} className="flex items-start gap-1 text-cyber-blue">
-                              <ChevronRight className="w-3 h-3 mt-0.5" /> {t}
-                            </li>
-                          ))}
-                        </ul>
-                      </div>
-                    )}
-                  </motion.div>
-                )}
-              </div>
             </section>
             
             <p className="text-[10px] text-center text-white/20 pb-4">
@@ -1201,101 +1101,17 @@ export default function App() {
           </motion.div>
         ) : activeTab === 'learningHub' ? (
           <LearningHub 
-            publicProfile={publicProfile} 
+            userDoc={userDoc} 
             onCompleteTopic={handleCompleteTopic}
             onPassQuiz={handlePassQuiz}
           />
-        ) : activeTab === 'leaderboard' ? (
-          <motion.div 
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            className="space-y-6"
-          >
-            <div className="flex items-center justify-between px-2">
-              <h2 className="text-xl font-bold flex items-center gap-2">
-                <Trophy className="w-6 h-6 text-cyber-yellow" />
-                Leaderboard
-              </h2>
-              <span className="text-xs text-white/40">Top Cyber Agents</span>
-            </div>
-
-            {!user ? (
-              <div className="bg-cyber-card p-6 rounded-2xl border border-white/5 text-center">
-                <Lock className="w-8 h-8 text-white/20 mx-auto mb-3" />
-                <p className="text-sm text-white/60">Log in to view the global leaderboard and compete with others.</p>
-                <button 
-                  onClick={handleLogin}
-                  className="mt-4 bg-cyber-blue text-black font-bold px-6 py-2 rounded-xl text-sm hover:bg-cyber-blue/80 transition-colors"
-                >
-                  Log In
-                </button>
-              </div>
-            ) : (
-              <div className="space-y-3">
-                {leaderboard.length === 0 ? (
-                  <p className="text-center text-white/40 text-sm py-10">No agents on the leaderboard yet.</p>
-                ) : (
-                  leaderboard.map((player, index) => (
-                    <div 
-                      key={player.uid} 
-                      className={cn(
-                        "flex items-center gap-4 p-4 rounded-2xl border transition-all",
-                        player.uid === user.uid 
-                          ? "bg-cyber-blue/10 border-cyber-blue/30" 
-                          : "bg-cyber-card border-white/5"
-                      )}
-                    >
-                      <div className={cn(
-                        "w-8 h-8 rounded-full flex items-center justify-center font-bold text-sm shrink-0",
-                        index === 0 ? "bg-cyber-yellow text-black" :
-                        index === 1 ? "bg-gray-300 text-black" :
-                        index === 2 ? "bg-amber-700 text-white" : "bg-white/10 text-white/50"
-                      )}>
-                        {index + 1}
-                      </div>
-                      <div className="w-10 h-10 rounded-full overflow-hidden border border-white/10 bg-black/50 shrink-0 flex items-center justify-center">
-                        {player.photoURL ? (
-                          <img src={player.photoURL} alt={player.displayName} className="w-full h-full object-cover" />
-                        ) : (
-                          <User className="w-5 h-5 text-white/30" />
-                        )}
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="font-bold text-sm truncate">
-                          {player.displayName}
-                          {player.uid === user.uid && <span className="text-[10px] text-cyber-blue ml-2">(You)</span>}
-                        </p>
-                        <div className="flex items-center gap-2 mt-1">
-                          <span className="text-[10px] text-white/50">{player.points} XP</span>
-                          {player.badges.length > 0 && (
-                            <div className="flex gap-1">
-                              {player.badges.slice(0, 3).map((badgeId, i) => {
-                                const badgeDef = BADGE_DEFINITIONS.find(b => b.id === badgeId);
-                                if (!badgeDef) return null;
-                                const Icon = badgeDef.icon;
-                                return (
-                                  <div key={i} className={cn("w-4 h-4 flex items-center justify-center border", badgeDef.shapeClass, badgeDef.colorClass)} title={badgeDef.name}>
-                                    <Icon className="w-2 h-2" />
-                                  </div>
-                                );
-                              })}
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                  ))
-                )}
-              </div>
-            )}
-          </motion.div>
         ) : activeTab === 'profile' ? (
           <motion.div 
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             className="space-y-6 pb-20"
           >
-            {!user || !publicProfile ? (
+            {!user || !userDoc ? (
               <div className="bg-cyber-card p-6 rounded-2xl border border-white/5 text-center mt-6">
                 <Lock className="w-8 h-8 text-white/20 mx-auto mb-3" />
                 <p className="text-sm text-white/60">Log in to view your profile and badges.</p>
@@ -1321,8 +1137,8 @@ export default function App() {
 
                   <div className="relative group cursor-pointer mt-4" onClick={() => setIsEditingProfile(true)}>
                     <div className="w-24 h-24 rounded-full overflow-hidden border-4 border-cyber-bg shadow-[0_0_20px_rgba(0,255,255,0.2)] bg-cyber-card flex items-center justify-center z-10 relative">
-                      {publicProfile?.photoURL ? (
-                        <img src={publicProfile.photoURL} alt="Profile" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                      {userDoc?.profileImage ? (
+                        <img src={userDoc.profileImage} alt="Profile" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
                       ) : (
                         <User className="w-12 h-12 text-white/30" />
                       )}
@@ -1332,10 +1148,10 @@ export default function App() {
                     </div>
                   </div>
                   
-                  <h2 className="text-2xl font-bold mt-4">{publicProfile?.displayName || 'Cyber Agent'}</h2>
+                  <h2 className="text-2xl font-bold mt-4">{userDoc?.name || 'Cyber Agent'}</h2>
                   <p className="text-sm text-cyber-blue font-bold uppercase tracking-widest mt-1">
                     {(() => {
-                      const xp = publicProfile?.points || 0;
+                      const xp = userDoc?.xp || 0;
                       if (xp > 1000) return 'Master';
                       if (xp > 500) return 'Expert';
                       if (xp > 100) return 'Intermediate';
@@ -1345,14 +1161,14 @@ export default function App() {
                   
                   <div className="flex gap-6 mt-6 w-full justify-center">
                     <div className="text-center">
-                      <p className="text-2xl font-bold">{publicProfile?.points || 0}</p>
+                      <p className="text-2xl font-bold">{userDoc?.xp || 0}</p>
                       <p className="text-[10px] uppercase tracking-wider text-white/50">Total XP</p>
                     </div>
                     <div className="w-px bg-white/10" />
                     <div className="text-center">
                       <p className="text-2xl font-bold">
                         {(() => {
-                          const xp = publicProfile?.points || 0;
+                          const xp = userDoc?.xp || 0;
                           if (xp > 1000) return '1';
                           if (xp > 500) return '2';
                           if (xp > 100) return '3';
@@ -1363,7 +1179,7 @@ export default function App() {
                     </div>
                     <div className="w-px bg-white/10" />
                     <div className="text-center">
-                      <p className="text-2xl font-bold">{publicProfile?.badges.length || 0}</p>
+                      <p className="text-2xl font-bold">{userDoc?.badges?.length || 0}</p>
                       <p className="text-[10px] uppercase tracking-wider text-white/50">Badges</p>
                     </div>
                   </div>
@@ -1374,7 +1190,7 @@ export default function App() {
                   <h3 className="text-sm font-bold uppercase tracking-widest text-white/30 px-2">Badges Earned</h3>
                   <div className="grid grid-cols-3 gap-3">
                     {BADGE_DEFINITIONS.map((badge) => {
-                      const isUnlocked = publicProfile?.badges.includes(badge.id);
+                      const isUnlocked = userDoc?.badges?.includes(badge.id);
                       const Icon = badge.icon;
                       
                       return (
@@ -1404,7 +1220,7 @@ export default function App() {
                 
                 <div className="pt-4">
                   <button 
-                    onClick={handleLogout}
+                    onClick={() => setShowLogoutConfirm(true)}
                     className="w-full bg-cyber-card border border-cyber-red/30 text-cyber-red font-bold py-3 rounded-xl text-sm hover:bg-cyber-red/10 transition-colors flex items-center justify-center gap-2"
                   >
                     <LogOut className="w-4 h-4" />
@@ -1427,6 +1243,9 @@ export default function App() {
           handleSaveSettings(prefs);
         }}
         onExportData={handleExportData}
+        isExporting={isExporting}
+        isResetting={isResetting}
+        isSavingSettings={isSavingSettings}
       />
 
       {/* Floating AI Mentor Button */}
@@ -1515,6 +1334,47 @@ export default function App() {
           <span className="text-[10px] font-bold uppercase">Profile</span>
         </button>
       </nav>
+
+      {/* Logout Confirmation Modal */}
+      <AnimatePresence>
+        {showLogoutConfirm && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="bg-cyber-card border border-white/10 rounded-2xl p-6 max-w-sm w-full shadow-2xl"
+            >
+              <div className="flex items-center gap-3 mb-4 text-cyber-red">
+                <LogOut className="w-6 h-6" />
+                <h3 className="text-xl font-bold">Confirm Logout</h3>
+              </div>
+              <p className="text-white/70 mb-6">
+                Are you sure you want to log out? Your session will be ended.
+              </p>
+              <div className="flex gap-3">
+                <button 
+                  onClick={() => setShowLogoutConfirm(false)}
+                  disabled={isLoggingOut}
+                  className="flex-1 py-3 rounded-xl border border-white/10 font-bold hover:bg-white/5 transition-colors disabled:opacity-50"
+                >
+                  Cancel
+                </button>
+                <button 
+                  onClick={() => {
+                    handleLogout();
+                    setShowLogoutConfirm(false);
+                  }}
+                  disabled={isLoggingOut}
+                  className="flex-1 py-3 rounded-xl bg-cyber-red text-white font-bold hover:bg-cyber-red/80 transition-colors disabled:opacity-50"
+                >
+                  {isLoggingOut ? 'Logging Out...' : 'Log Out'}
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

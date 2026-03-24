@@ -1,15 +1,18 @@
 {
   "entities": {
-    "PublicProfile": {
-      "title": "PublicProfile",
-      "description": "Publicly visible profile information and stats for the leaderboard.",
+    "UserDocument": {
+      "title": "UserDocument",
+      "description": "Unified user profile information, stats, and preferences.",
       "type": "object",
       "properties": {
         "uid": { "type": "string", "description": "User ID" },
-        "displayName": { "type": "string", "description": "Display name" },
-        "points": { "type": "number", "description": "Total XP points" },
+        "name": { "type": "string", "description": "Display name" },
+        "email": { "type": "string", "description": "User's email address" },
+        "xp": { "type": "number", "description": "Total XP points" },
+        "level": { "type": "number", "description": "Current level" },
+        "createdAt": { "type": "string", "description": "Account creation timestamp" },
+        "profileImage": { "type": "string", "description": "Profile picture URL" },
         "badges": { "type": "array", "items": { "type": "string" }, "description": "Array of badge IDs" },
-        "photoURL": { "type": "string", "description": "Profile picture URL" },
         "completedTopics": { "type": "array", "items": { "type": "string" }, "description": "Array of completed topic IDs" },
         "quizScores": { "type": "object", "description": "Map of topicId to highest score" },
         "simulationScores": { "type": "object", "description": "Map of simulationId to highest score" },
@@ -26,42 +29,20 @@
             "topicsCompleted": { "type": "number" },
             "quizzesPassed": { "type": "number" }
           }
-        }
-      },
-      "required": ["uid", "displayName", "points", "badges", "completedTopics", "stats"]
-    },
-    "UserProfile": {
-      "title": "UserProfile",
-      "description": "Private user profile information, preferences, and risk score.",
-      "type": "object",
-      "properties": {
-        "uid": { "type": "string", "description": "User ID" },
-        "email": { "type": "string", "description": "User's email address" },
+        },
         "riskScore": { "type": "number", "description": "Current risk score" },
         "preferences": {
           "type": "object",
           "properties": {
-            "notifications": {
-              "type": "object",
-              "properties": {
-                "email": { "type": "boolean" },
-                "push": { "type": "boolean" },
-                "weeklyReport": { "type": "boolean" }
-              }
-            },
-            "privacy": {
-              "type": "object",
-              "properties": {
-                "publicProfile": { "type": "boolean" },
-                "shareData": { "type": "boolean" }
-              }
-            },
-            "sound": { "type": "boolean" },
-            "darkMode": { "type": "boolean" }
+            "darkMode": { "type": "boolean" },
+            "highContrast": { "type": "boolean" },
+            "notifications": { "type": "boolean" },
+            "soundEffects": { "type": "boolean" },
+            "hapticFeedback": { "type": "boolean" }
           }
         }
       },
-      "required": ["uid", "email", "riskScore", "preferences"]
+      "required": ["uid", "name", "email", "xp", "level", "createdAt", "badges", "completedTopics", "stats", "riskScore", "preferences"]
     },
     "ChatSession": {
       "title": "ChatSession",
@@ -70,21 +51,21 @@
       "properties": {
         "id": { "type": "string", "description": "Session ID" },
         "title": { "type": "string", "description": "Session title" },
-        "timestamp": { "type": "string", "description": "Creation timestamp" },
+        "updatedAt": { "type": "string", "description": "Last update timestamp" },
         "messages": {
           "type": "array",
           "items": {
             "type": "object",
             "properties": {
               "id": { "type": "string" },
-              "role": { "type": "string", "enum": ["user", "assistant"] },
-              "content": { "type": "string" },
+              "role": { "type": "string", "enum": ["user", "ai"] },
+              "text": { "type": "string" },
               "timestamp": { "type": "string" }
             }
           }
         }
       },
-      "required": ["id", "title", "timestamp", "messages"]
+      "required": ["id", "title", "updatedAt", "messages"]
     },
     "RecentActivity": {
       "title": "RecentActivity",
@@ -100,21 +81,17 @@
     }
   },
   "firestore": {
-    "/publicProfiles/{userId}": {
-      "schema": { "$ref": "#/entities/PublicProfile" },
-      "description": "Public profiles for all users, used for the leaderboard."
-    },
-    "/userProfiles/{userId}": {
-      "schema": { "$ref": "#/entities/UserProfile" },
-      "description": "Private profiles containing sensitive preferences and risk scores."
+    "/users/{userId}": {
+      "schema": { "$ref": "#/entities/UserDocument" },
+      "description": "Stores the user's unified profile, stats, and preferences."
     },
     "/users/{userId}/chatSessions/{sessionId}": {
       "schema": { "$ref": "#/entities/ChatSession" },
-      "description": "Chat sessions belonging to a specific user."
+      "description": "Stores individual chat sessions for a user."
     },
     "/users/{userId}/recentActivity/{activityId}": {
       "schema": { "$ref": "#/entities/RecentActivity" },
-      "description": "Recent activities belonging to a specific user."
+      "description": "Stores recent activity logs for a user."
     }
   }
 }

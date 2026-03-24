@@ -33,14 +33,6 @@ export interface UserPreferences {
   hapticFeedback: boolean;
 }
 
-export interface UserProfile {
-  uid: string;
-  email: string;
-  riskScore: number;
-  lastAnalyzed?: string;
-  preferences?: UserPreferences;
-}
-
 export interface ChatSession {
   id: string;
   title: string;
@@ -48,18 +40,21 @@ export interface ChatSession {
   updatedAt: string;
 }
 
-export interface PublicProfile {
+export interface UserDocument {
   uid: string;
-  displayName: string;
-  points: number;
+  name: string;
+  email: string;
+  xp: number;
+  level: number;
+  createdAt: string;
+  profileImage: string;
+  
   badges: string[];
-  photoURL?: string;
-  stats?: {
+  stats: {
     aiQueries: number;
     actionsTaken: number;
     strongPasswords: number;
     phishingDetected: number;
-    threatsAnalyzed: number;
     toolsUsed: string[];
     simulationsCompleted: number;
     topicsCompleted: number;
@@ -71,10 +66,13 @@ export interface PublicProfile {
     firstBadgeUnlocked?: string;
     levelUpgrades: { level: string; date: string }[];
   };
-  completedTopics?: string[];
-  quizScores?: Record<string, number>;
-  simulationScores?: Record<string, number>;
+  completedTopics: string[];
+  quizScores: Record<string, number>;
+  simulationScores: Record<string, number>;
   chatSessions?: ChatSession[];
+  riskScore: number;
+  lastAnalyzed?: string;
+  preferences: UserPreferences;
 }
 
 export interface QuizQuestion {

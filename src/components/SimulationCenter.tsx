@@ -3,21 +3,21 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Shield, AlertTriangle, CheckCircle, XCircle, ArrowLeft, PlayCircle, ShieldAlert, Zap } from 'lucide-react';
 import { cn } from '../utils/cn';
 import { SIMULATION_SCENARIOS } from '../data/simulations';
-import { SimulationScenario, PublicProfile } from '../types';
+import { SimulationScenario, UserDocument } from '../types';
 
 interface SimulationCenterProps {
-  publicProfile: PublicProfile | null;
+  userDoc: UserDocument | null;
   onCompleteSimulation: (scenarioId: string, xpReward: number, score: number) => void;
   onClose: () => void;
 }
 
-export function SimulationCenter({ publicProfile, onCompleteSimulation, onClose }: SimulationCenterProps) {
+export function SimulationCenter({ userDoc, onCompleteSimulation, onClose }: SimulationCenterProps) {
   const [activeScenario, setActiveScenario] = useState<SimulationScenario | null>(null);
   const [selectedAnswer, setSelectedAnswer] = useState<'Safe' | 'Suspicious' | 'Malicious' | null>(null);
   const [showResult, setShowResult] = useState(false);
 
-  const completedSimulations = publicProfile?.stats?.simulationsCompleted || 0;
-  const simulationScores = publicProfile?.simulationScores || {};
+  const completedSimulations = userDoc?.stats?.simulationsCompleted || 0;
+  const simulationScores = userDoc?.simulationScores || {};
 
   const handleStart = (scenario: SimulationScenario) => {
     setActiveScenario(scenario);

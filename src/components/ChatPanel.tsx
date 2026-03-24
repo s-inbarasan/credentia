@@ -34,7 +34,7 @@ export function ChatPanel({ isOpen, onClose, userUid, chatSessions, onSessionUpd
 
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [activeSession?.messages, isTyping]);
+  }, [activeSession?.messages?.length, isTyping]);
 
   const handleNewChat = () => {
     const newSession: ChatSession = {
@@ -63,9 +63,10 @@ export function ChatPanel({ isOpen, onClose, userUid, chatSessions, onSessionUpd
       timestamp: new Date().toISOString()
     };
 
-    const updatedMessages = [...activeSession.messages, userMsg];
+    const currentMessages = activeSession.messages || [];
+    const updatedMessages = [...currentMessages, userMsg];
     let newTitle = activeSession.title;
-    if (activeSession.messages.length === 1) {
+    if (currentMessages.length === 1) {
       newTitle = input.trim().slice(0, 30) + '...';
     }
 
@@ -209,7 +210,7 @@ export function ChatPanel({ isOpen, onClose, userUid, chatSessions, onSessionUpd
 
               {/* Messages Area */}
               <div className="flex-1 overflow-y-auto p-4 space-y-6">
-                {activeSession?.messages.map((msg) => (
+                {(activeSession?.messages || []).map((msg) => (
                   <div key={msg.id} className={`flex gap-3 ${msg.role === 'user' ? 'flex-row-reverse' : ''}`}>
                     <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 ${msg.role === 'user' ? 'bg-cyber-purple/20 border border-cyber-purple/50' : 'bg-cyber-blue/20 border border-cyber-blue/50'}`}>
                       {msg.role === 'user' ? <User className="w-4 h-4 text-cyber-purple" /> : <Bot className="w-4 h-4 text-cyber-blue" />}

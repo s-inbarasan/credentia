@@ -1,5 +1,5 @@
 import { Brain, Shield, Lock, Fish, Zap, ShieldAlert, Key, Crown, LucideIcon, Target, Compass, Search, BookOpen } from 'lucide-react';
-import { PublicProfile } from '../types';
+import { UserDocument } from '../types';
 
 export type BadgeTier = 'Beginner' | 'Intermediate' | 'Advanced' | 'Master';
 
@@ -12,7 +12,7 @@ export interface BadgeDefinition {
   colorClass: string;
   shapeClass: string;
   maxProgress: number;
-  getProgress: (stats: NonNullable<PublicProfile['stats']>, badges: string[]) => number;
+  getProgress: (stats: NonNullable<UserDocument['stats']>, badges: string[]) => number;
 }
 
 export const BADGE_DEFINITIONS: BadgeDefinition[] = [
@@ -85,13 +85,13 @@ export const BADGE_DEFINITIONS: BadgeDefinition[] = [
   {
     id: 'Threat Hunter',
     name: 'Threat Hunter',
-    description: 'Analyze 10 threats or phishing attempts.',
+    description: 'Analyze 10 phishing attempts.',
     tier: 'Advanced',
     icon: Search,
     colorClass: 'text-orange-400 border-orange-400/50 bg-orange-400/10 shadow-[0_0_15px_rgba(251,146,60,0.5)]',
     shapeClass: 'rounded-tl-2xl rounded-br-2xl rounded-tr-sm rounded-bl-sm',
     maxProgress: 10,
-    getProgress: (stats) => Math.min(10, stats.phishingDetected + stats.threatsAnalyzed)
+    getProgress: (stats) => Math.min(10, stats.phishingDetected)
   },
   {
     id: 'Elite Defender',
@@ -117,7 +117,7 @@ export const BADGE_DEFINITIONS: BadgeDefinition[] = [
   }
 ];
 
-export const checkNewBadges = (stats: NonNullable<PublicProfile['stats']>, currentBadges: string[]): string[] => {
+export const checkNewBadges = (stats: NonNullable<UserDocument['stats']>, currentBadges: string[]): string[] => {
   const newBadges: string[] = [];
   
   for (const badge of BADGE_DEFINITIONS) {
