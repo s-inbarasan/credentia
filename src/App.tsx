@@ -48,6 +48,7 @@ import { SettingsModal } from './components/SettingsModal';
 import { LandingPage } from './components/LandingPage';
 import { Login } from './components/Login';
 import { ChatPanel } from './components/ChatPanel';
+import { Onboarding } from './components/Onboarding';
 import { BADGE_DEFINITIONS, checkNewBadges } from './utils/badges';
 import { supabase } from './supabase';
 import { cn } from './utils/cn';
@@ -105,10 +106,11 @@ interface AppUser {
 export default function App() {
   const [activeTab, setActiveTab] = useState<'home' | 'tools' | 'learningHub' | 'profile'>('home');
   const [user, setUser] = useState<AppUser | null>(null);
+  const [userDoc, setUserDoc] = useState<UserDocument | null>(null);
   const [isGuest, setIsGuest] = useState(false);
+  const [needsOnboarding, setNeedsOnboarding] = useState(false);
   const [showLogin, setShowLogin] = useState(false);
   const [showChatPanel, setShowChatPanel] = useState(false);
-  const [userDoc, setUserDoc] = useState<UserDocument | null>(null);
   const [loading, setLoading] = useState(true);
   const [showBadgeNotification, setShowBadgeNotification] = useState<string | null>(null);
   const [showSettingsSaved, setShowSettingsSaved] = useState(false);
@@ -319,36 +321,7 @@ export default function App() {
         setUser(appUser);
         setIsGuest(false);
         
-        const defaultStats = {
-          aiQueries: 0,
-          actionsTaken: 0,
-          strongPasswords: 0,
-          phishingDetected: 0,
-          threatsAnalyzed: 0,
-          toolsUsed: [],
-          simulationsCompleted: 0,
-          topicsCompleted: 0,
-          quizzesPassed: 0
-        };
-
-        const defaultUserDoc: UserDocument = {
-          uid: supabaseUser.id,
-          name: appUser.displayName || 'User',
-          email: appUser.email || '',
-          xp: 0,
-          level: 1,
-          createdAt: new Date().toISOString(),
-          profileImage: appUser.photoURL || '',
-          badges: [],
-          completedTopics: [],
-          quizScores: {},
-          simulationScores: {},
-          stats: defaultStats,
-          riskScore: 15,
-          preferences
-        };
-
-        // Initialize document if it doesn't exist
+        // Check if profile exists
         try {
           const { data: existingProfile, error: fetchError } = await supabase
             .from('profiles')
@@ -357,30 +330,11 @@ export default function App() {
             .single();
 
           if (fetchError && fetchError.code === 'PGRST116') {
-            // Profile doesn't exist, create it
-            const { error: insertError } = await supabase
-              .from('profiles')
-              .insert({
-                id: supabaseUser.id,
-                name: defaultUserDoc.name,
-                email: defaultUserDoc.email,
-                xp: defaultUserDoc.xp,
-                level: defaultUserDoc.level,
-                created_at: defaultUserDoc.createdAt,
-                profile_image: defaultUserDoc.profileImage,
-                badges: defaultUserDoc.badges,
-                completed_topics: defaultUserDoc.completedTopics,
-                quiz_scores: defaultUserDoc.quizScores,
-                simulation_scores: defaultUserDoc.simulationScores,
-                stats: defaultUserDoc.stats,
-                risk_score: defaultUserDoc.riskScore,
-                preferences: defaultUserDoc.preferences
-              });
-            
-            if (insertError) console.error('Error creating profile:', insertError);
-            else setUserDoc(defaultUserDoc);
+            // Profile doesn't exist, trigger onboarding
+            setNeedsOnboarding(true);
           } else if (existingProfile) {
-            // Map Supabase snake_case to our camelCase UserDocument
+            // Profile exists, map it
+            setNeedsOnboarding(false);
             const mappedProfile: UserDocument = {
               uid: existingProfile.id,
               name: existingProfile.name,
@@ -433,6 +387,7 @@ export default function App() {
                 preferences: data.preferences
               };
               setUserDoc(mappedProfile);
+              setNeedsOnboarding(false);
             }
           })
           .subscribe();
@@ -490,6 +445,8 @@ export default function App() {
       } else {
         setUser(null);
         setUserDoc(null);
+        setIsGuest(false); // Show landing page if no session
+        setNeedsOnboarding(false);
         setRiskScore(15);
         setRecentActivity([]);
         setChatSessions([]);
@@ -813,6 +770,18 @@ export default function App() {
           </div>
         </div>
       </div>
+    );
+  }
+
+  if (user && needsOnboarding) {
+    return (
+      <Onboarding 
+        user={user} 
+        onComplete={(doc) => {
+          setUserDoc(doc);
+          setNeedsOnboarding(false);
+        }} 
+      />
     );
   }
 
