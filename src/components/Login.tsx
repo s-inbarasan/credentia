@@ -12,6 +12,7 @@ interface LoginProps {
 
 export function Login({ onBack, onSuccess }: LoginProps) {
   const [isSignUp, setIsSignUp] = useState(false);
+  console.log('Login component rendered', { isSignUp });
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
@@ -32,16 +33,17 @@ export function Login({ onBack, onSuccess }: LoginProps) {
 
   const handleEmailAuth = async (e: React.FormEvent) => {
     e.preventDefault();
+    console.log('Form submitted', { isSignUp, email, passwordLength: password.length });
     
-    if (isSignUp && !passwordRegex.test(password)) {
-      toast.error('Weak Password', {
-        description: 'Must be at least 8 characters and include uppercase, lowercase, number, and special character.'
+    if (isSignUp && password.length < 6) {
+      toast.error('Password too short', {
+        description: 'Password must be at least 6 characters.'
       });
       return;
     }
 
     setLoading(true);
-    console.log('Starting authentication...', { isSignUp, email });
+    console.log('Starting authentication process...');
     try {
       if (isSignUp) {
         const { data, error: signUpError } = await supabase.auth.signUp({
@@ -193,6 +195,7 @@ export function Login({ onBack, onSuccess }: LoginProps) {
           <button 
             type="submit"
             disabled={loading}
+            onClick={() => console.log('Submit button clicked')}
             className="w-full bg-cyber-blue text-black font-bold py-3 rounded-xl hover:bg-cyber-blue/90 transition-all mt-6 disabled:opacity-50"
           >
             {loading ? 'Processing...' : (isSignUp ? 'Sign Up' : 'Log In')}

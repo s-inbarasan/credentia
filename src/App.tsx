@@ -309,6 +309,7 @@ export default function App() {
 
     const handleSession = async (session: any) => {
       const supabaseUser = session?.user;
+      console.log('App: handleSession triggered', { hasUser: !!supabaseUser, userId: supabaseUser?.id });
       
       if (supabaseUser) {
         const appUser: AppUser = {
@@ -323,17 +324,23 @@ export default function App() {
         
         // Check if profile exists
         try {
+          console.log('App: Fetching profile for user:', supabaseUser.id);
           const { data: existingProfile, error: fetchError } = await supabase
             .from('profiles')
             .select('*')
             .eq('id', supabaseUser.id)
             .single();
 
-          if (fetchError && fetchError.code === 'PGRST116') {
-            // Profile doesn't exist, trigger onboarding
-            setNeedsOnboarding(true);
+          if (fetchError) {
+            console.log('App: Profile fetch error/result:', fetchError);
+            if (fetchError.code === 'PGRST116') {
+              console.log('App: Profile not found, needs onboarding');
+              setNeedsOnboarding(true);
+            } else {
+              console.error('App: Unexpected profile fetch error:', fetchError);
+            }
           } else if (existingProfile) {
-            // Profile exists, map it
+            console.log('App: Profile found, skipping onboarding');
             setNeedsOnboarding(false);
             const mappedProfile: UserDocument = {
               uid: existingProfile.id,
@@ -360,7 +367,7 @@ export default function App() {
             }
           }
         } catch (error) {
-          console.error('Error in profile sync:', error);
+          console.error('App: Error in profile sync:', error);
         }
 
         // Listen to User Document (Realtime)
@@ -394,19 +401,31 @@ export default function App() {
 
         // Initial fetch and Listen to Chat Sessions
         const fetchChatSessions = async () => {
-          const { data, error } = await supabase
-            .from('chat_sessions')
-            .select('*')
-            .eq('user_id', supabaseUser.id)
-            .order('updated_at', { ascending: false });
-          
-          if (data) {
-            setChatSessions(data.map(s => ({
-              id: s.id,
-              title: s.title,
-              updatedAt: s.updated_at,
-              messages: s.messages
-            })));
+          try {
+            const { data, error } = await supabase
+              .from('chat_sessions')
+              .select('*')
+              .eq('user_id', supabaseUser.id)
+              .order('updated_at', { ascending: false });
+            
+            if (error) {
+              if (error.code === 'PGRST116' || error.message.includes('relation "public.chat_sessions" does not exist')) {
+                console.warn('Chat sessions table not found. Please run the SQL script.');
+                return;
+              }
+              throw error;
+            }
+
+            if (data) {
+              setChatSessions(data.map(s => ({
+                id: s.id,
+                title: s.title,
+                updatedAt: s.updated_at,
+                messages: s.messages
+              })));
+            }
+          } catch (err) {
+            console.error('Error fetching chat sessions:', err);
           }
         };
         fetchChatSessions();
@@ -421,15 +440,27 @@ export default function App() {
 
         // Initial fetch and Listen to Recent Activity
         const fetchRecentActivity = async () => {
-          const { data, error } = await supabase
-            .from('recent_activity')
-            .select('*')
-            .eq('user_id', supabaseUser.id)
-            .order('timestamp', { ascending: false })
-            .limit(5);
-          
-          if (data) {
-            setRecentActivity(data);
+          try {
+            const { data, error } = await supabase
+              .from('recent_activity')
+              .select('*')
+              .eq('user_id', supabaseUser.id)
+              .order('timestamp', { ascending: false })
+              .limit(5);
+            
+            if (error) {
+              if (error.code === 'PGRST116' || error.message.includes('relation "public.recent_activity" does not exist')) {
+                console.warn('Recent activity table not found. Please run the SQL script.');
+                return;
+              }
+              throw error;
+            }
+
+            if (data) {
+              setRecentActivity(data);
+            }
+          } catch (err) {
+            console.error('Error fetching recent activity:', err);
           }
         };
         fetchRecentActivity();
@@ -443,6 +474,7 @@ export default function App() {
           .subscribe();
 
       } else {
+        console.log('App: No session found, clearing user state');
         setUser(null);
         setUserDoc(null);
         setIsGuest(false); // Show landing page if no session
@@ -454,6 +486,7 @@ export default function App() {
         if (chatSubscription) chatSubscription.unsubscribe();
         if (activitySubscription) activitySubscription.unsubscribe();
       }
+      console.log('App: Setting loading to false');
       setLoading(false);
     };
 
@@ -746,20 +779,10 @@ export default function App() {
     "Secure my Wi-Fi"
   ];
 
-  if (loading) {
-    return (
-      <div className="h-screen bg-cyber-bg flex items-center justify-center">
-        <motion.div 
-          animate={{ scale: [1, 1.2, 1], opacity: [0.5, 1, 0.5] }}
-          transition={{ repeat: Infinity, duration: 2 }}
-        >
-          <Shield className="w-12 h-12 text-cyber-blue" />
-        </motion.div>
-      </div>
-    );
-  }
+  console.log('App: Rendering', { loading, hasUser: !!user, needsOnboarding, hasUserDoc: !!userDoc });
 
   if (loading) {
+    console.log('App: Rendering loading state');
     return (
       <div className="min-h-screen bg-cyber-bg flex items-center justify-center">
         <div className="flex flex-col items-center gap-4">
@@ -774,12 +797,15 @@ export default function App() {
   }
 
   if (user && needsOnboarding) {
+    console.log('App: Rendering Onboarding component');
     return (
       <Onboarding 
         user={user} 
         onComplete={(doc) => {
+          console.log('App: onComplete called with doc:', doc);
           setUserDoc(doc);
           setNeedsOnboarding(false);
+          console.log('App: needsOnboarding set to false');
         }} 
       />
     );

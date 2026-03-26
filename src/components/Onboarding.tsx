@@ -14,6 +14,9 @@ export function Onboarding({ user, onComplete }: OnboardingProps) {
   const [username, setUsername] = useState('');
   const [profileImage, setProfileImage] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isSuccess, setIsSuccess] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
+  const isSubmittingRef = useRef(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -35,11 +38,27 @@ export function Onboarding({ user, onComplete }: OnboardingProps) {
     }
 
     setIsSubmitting(true);
+    isSubmittingRef.current = true;
+    setSubmitError(null);
+    console.log('Onboarding: Starting submission for user:', user.uid);
+    
+    // Set a safety timeout to prevent infinite hang
+    const timeoutId = setTimeout(() => {
+      if (isSubmittingRef.current) {
+        setIsSubmitting(false);
+        isSubmittingRef.current = false;
+        toast.error('Connection Timeout', {
+          description: 'The request is taking too long. Please check your connection and try again.'
+        });
+      }
+    }, 30000); // Increased to 30s for mobile users
+
     try {
       let finalImageUrl = '';
 
       // 1. Upload image to Supabase Storage if present
       if (profileImage && fileInputRef.current?.files?.[0]) {
+        console.log('Onboarding: Uploading profile image...');
         const file = fileInputRef.current.files[0];
         const fileExt = file.name.split('.').pop();
         const fileName = `profile.${fileExt}`;
@@ -49,13 +68,20 @@ export function Onboarding({ user, onComplete }: OnboardingProps) {
           .from('profile-images')
           .upload(filePath, file, { upsert: true });
 
-        if (uploadError) throw uploadError;
-
-        const { data: { publicUrl } } = supabase.storage
-          .from('profile-images')
-          .getPublicUrl(filePath);
-        
-        finalImageUrl = publicUrl;
+        if (uploadError) {
+          console.error('Onboarding: Image upload error:', uploadError);
+          // Don't throw here, just log it. We can still create the profile without an image.
+          toast.warning('Image Upload Failed', {
+            description: 'Your profile will be created without a custom image.'
+          });
+        } else {
+          const { data: { publicUrl } } = supabase.storage
+            .from('profile-images')
+            .getPublicUrl(filePath);
+          
+          finalImageUrl = publicUrl;
+          console.log('Onboarding: Image uploaded successfully. URL:', finalImageUrl);
+        }
       }
 
       const defaultStats = {
@@ -93,12 +119,18 @@ export function Onboarding({ user, onComplete }: OnboardingProps) {
         }
       };
 
-      // 2. Insert into profiles table
-      const { error: insertError } = await supabase
+      console.log('Onboarding: Creating profile in database...');
+      // 2. Upsert into profiles table (upsert is safer than insert)
+      const { error: dbError } = await supabase
         .from('profiles')
-        .insert(profileData);
+        .upsert(profileData);
 
-      if (insertError) throw insertError;
+      if (dbError) {
+        console.error('Onboarding: Database error:', dbError);
+        throw dbError;
+      }
+
+      console.log('Onboarding: Profile created successfully in DB. Calling onComplete...');
 
       // 3. Map to UserDocument and complete
       const userDoc: UserDocument = {
@@ -119,16 +151,65 @@ export function Onboarding({ user, onComplete }: OnboardingProps) {
       };
 
       toast.success('Profile created successfully!');
-      onComplete(userDoc);
+      clearTimeout(timeoutId);
+      isSubmittingRef.current = false;
+      setIsSuccess(true);
+      
+      console.log('Onboarding: Final userDoc ready:', userDoc);
+      
+      // Give the user 2 seconds to see the success state
+      setTimeout(() => {
+        console.log('Onboarding: Calling onComplete after delay');
+        onComplete(userDoc);
+      }, 2000);
+      
     } catch (error: any) {
+      clearTimeout(timeoutId);
+      isSubmittingRef.current = false;
       console.error('Onboarding error:', error);
+      const errorMsg = error.message || JSON.stringify(error);
+      setSubmitError(errorMsg);
       toast.error('Failed to create profile', {
-        description: error.message || 'Please try again.'
+        description: errorMsg
       });
     } finally {
       setIsSubmitting(false);
+      isSubmittingRef.current = false;
     }
   };
+
+  if (isSuccess) {
+    return (
+      <div className="min-h-screen bg-cyber-bg text-white flex flex-col items-center justify-center p-6 relative overflow-hidden">
+        <div className="absolute top-0 left-0 w-full h-full overflow-hidden pointer-events-none">
+          <div className="absolute top-[-20%] left-[-10%] w-[50%] h-[50%] bg-cyber-green/20 blur-[120px] rounded-full" />
+        </div>
+        <motion.div 
+          initial={{ scale: 0.8, opacity: 0 }}
+          animate={{ scale: 1, opacity: 1 }}
+          className="z-10 text-center space-y-6"
+        >
+          <div className="w-24 h-24 bg-cyber-green/20 rounded-full flex items-center justify-center mx-auto border-2 border-cyber-green shadow-[0_0_30px_rgba(0,255,0,0.2)]">
+            <motion.div
+              initial={{ pathLength: 0 }}
+              animate={{ pathLength: 1 }}
+              transition={{ duration: 0.5 }}
+            >
+              <Shield className="w-12 h-12 text-cyber-green" />
+            </motion.div>
+          </div>
+          <div className="space-y-2">
+            <h2 className="text-3xl font-bold text-cyber-green">Access Granted</h2>
+            <p className="text-white/60">Welcome to CREDENTIA, Agent {username}</p>
+          </div>
+          <div className="flex items-center justify-center gap-2 text-cyber-green/60 font-mono text-sm">
+            <Loader2 className="w-4 h-4 animate-spin" />
+            Synchronizing Neural Link...
+          </div>
+        </motion.div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-cyber-bg text-white flex flex-col items-center justify-center p-6 relative overflow-hidden">
@@ -192,6 +273,13 @@ export function Onboarding({ user, onComplete }: OnboardingProps) {
               />
             </div>
           </div>
+
+          {submitError && (
+            <div className="p-4 bg-red-500/10 border border-red-500/20 rounded-xl text-red-500 text-xs font-mono break-all">
+              <p className="font-bold mb-1 uppercase">Error Details:</p>
+              {submitError}
+            </div>
+          )}
 
           <button 
             type="submit"
