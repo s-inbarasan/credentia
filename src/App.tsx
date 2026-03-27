@@ -856,7 +856,7 @@ export default function App() {
   }
 
   return (
-    <div className="flex flex-col h-screen max-w-md mx-auto bg-cyber-bg text-white overflow-hidden border-x border-white/10 shadow-2xl relative">
+    <div className="flex flex-col h-screen w-full md:max-w-screen-2xl mx-auto bg-cyber-bg text-white overflow-hidden md:border-x border-white/10 shadow-2xl relative">
       
       {/* Badge Notification Overlay */}
       <AnimatePresence>
@@ -969,7 +969,7 @@ export default function App() {
 
       {/* Header */}
       <header className="p-4 pt-10 border-b border-white/10 bg-cyber-bg/80 backdrop-blur-md z-10">
-        <div className="flex items-center justify-between">
+        <div className="max-w-5xl mx-auto flex items-center justify-between w-full">
           <div className="flex items-center gap-3">
             <div 
               onClick={() => setIsEditingProfile(true)}
@@ -1024,7 +1024,7 @@ export default function App() {
       </header>
 
       {/* Main Content */}
-      <main className={cn("flex-1 overflow-y-auto scrollbar-hide p-4 space-y-6", "pb-24")}>
+      <main className={cn("flex-1 overflow-y-auto scrollbar-hide p-4 space-y-6 max-w-5xl mx-auto w-full", "pb-24")}>
         {showSimulationCenter ? (
           <SimulationCenter 
             userDoc={userDoc}
@@ -1037,11 +1037,11 @@ export default function App() {
             animate={{ opacity: 1, y: 0 }}
             className="space-y-6"
           >
-            {/* User Welcome */}
+            {/* Top Row: Welcome & Profile */}
             <div className="flex items-center justify-between px-2">
               <div className="flex flex-col">
                 <div className="flex items-center gap-2">
-                  <h2 className="text-xl font-bold">
+                  <h2 className="text-xl md:text-2xl font-bold">
                     {user && userDoc ? `Welcome back, ${userDoc.name}` : "Welcome, Guest"}
                   </h2>
                   {user ? (
@@ -1056,13 +1056,13 @@ export default function App() {
                     </div>
                   )}
                 </div>
-                <p className="text-xs text-white/40">
+                <p className="text-xs md:text-sm text-white/40">
                   {user ? "Your security profile is synced" : "Login to save your progress"}
                 </p>
               </div>
               {user && userDoc && (
                 <div className="relative group cursor-pointer" onClick={() => setIsEditingProfile(true)}>
-                  <div className="w-12 h-12 rounded-full overflow-hidden border-2 border-cyber-blue/30 group-hover:border-cyber-blue transition-colors bg-cyber-card flex items-center justify-center">
+                  <div className="w-12 h-12 md:w-14 md:h-14 rounded-full overflow-hidden border-2 border-cyber-blue/30 group-hover:border-cyber-blue transition-colors bg-cyber-card flex items-center justify-center">
                     {userDoc.profileImage ? (
                       <img src={userDoc.profileImage} alt="Profile" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
                     ) : (
@@ -1076,41 +1076,44 @@ export default function App() {
               )}
             </div>
 
-            {/* Security Score */}
-            <section className="bg-cyber-card p-6 rounded-3xl border border-white/5 relative overflow-hidden flex items-center justify-between">
-              <div className="absolute top-0 right-0 p-4 opacity-10">
-                <Logo size="xl" className="opacity-20 grayscale" />
-              </div>
-              <div className="z-10">
-                <h3 className="text-sm font-bold uppercase tracking-widest text-white/30 mb-2">Security Score</h3>
-                <p className="text-[10px] text-white/50 max-w-[200px] leading-relaxed">
-                  Based on your learning progress, quiz scores, and tool usage.
-                </p>
-              </div>
-              <div className="z-10">
-                <RiskMeter score={100 - riskScore} />
-              </div>
-            </section>
-
-            {/* Learning Progress Summary */}
-            <section className="bg-gradient-to-r from-cyber-card to-cyber-bg p-5 rounded-3xl border border-cyber-blue/20 flex items-center justify-between">
-              <div>
-                <p className="text-[10px] uppercase text-cyber-blue font-bold tracking-wider mb-1">Learning Progress</p>
-                <div className="flex items-end gap-1">
-                  <span className="text-3xl font-bold">{userDoc?.completedTopics?.length || 0}</span>
-                  <span className="text-xs text-white/50 mb-1">/ 50 Topics</span>
+            {/* Grid for Score and Progress */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              {/* Security Score */}
+              <section className="bg-cyber-card p-6 rounded-3xl border border-white/5 relative overflow-hidden flex items-center justify-between h-full">
+                <div className="absolute top-0 right-0 p-4 opacity-10">
+                  <Logo size="xl" className="opacity-20 grayscale" />
                 </div>
-              </div>
-              <div className="flex gap-2">
-                <div className="text-right">
-                  <p className="text-[10px] uppercase text-cyber-yellow font-bold tracking-wider mb-1">Cyber XP</p>
-                  <div className="flex items-end gap-1 justify-end">
-                    <span className="text-xl font-bold">{userDoc?.xp || 0}</span>
-                    <span className="text-xs text-white/50 mb-1">pts</span>
+                <div className="z-10">
+                  <h3 className="text-sm font-bold uppercase tracking-widest text-white/30 mb-2">Security Score</h3>
+                  <p className="text-[10px] text-white/50 max-w-[200px] leading-relaxed">
+                    Based on your learning progress, quiz scores, and tool usage.
+                  </p>
+                </div>
+                <div className="z-10">
+                  <RiskMeter score={100 - riskScore} />
+                </div>
+              </section>
+
+              {/* Learning Progress Summary */}
+              <section className="bg-gradient-to-r from-cyber-card to-cyber-bg p-5 rounded-3xl border border-cyber-blue/20 flex items-center justify-between h-full">
+                <div>
+                  <p className="text-[10px] uppercase text-cyber-blue font-bold tracking-wider mb-1">Learning Progress</p>
+                  <div className="flex items-end gap-1">
+                    <span className="text-3xl font-bold">{userDoc?.completedTopics?.length || 0}</span>
+                    <span className="text-xs text-white/50 mb-1">/ 50 Topics</span>
                   </div>
                 </div>
-              </div>
-            </section>
+                <div className="flex gap-2">
+                  <div className="text-right">
+                    <p className="text-[10px] uppercase text-cyber-yellow font-bold tracking-wider mb-1">Cyber XP</p>
+                    <div className="flex items-end gap-1 justify-end">
+                      <span className="text-xl font-bold">{userDoc?.xp || 0}</span>
+                      <span className="text-xs text-white/50 mb-1">pts</span>
+                    </div>
+                  </div>
+                </div>
+              </section>
+            </div>
 
             {/* Quick Access Cards */}
             <section className="space-y-4">
@@ -1557,47 +1560,49 @@ export default function App() {
       </AnimatePresence>
 
       {/* Navigation */}
-      <nav className="fixed bottom-0 left-0 right-0 max-w-md mx-auto bg-cyber-card/90 backdrop-blur-xl border-t border-white/10 p-2 flex justify-around items-center z-20">
-        <button 
-          onClick={() => { setActiveTab('home'); setShowSimulationCenter(false); }}
-          className={cn(
-            "flex flex-col items-center gap-1 p-2 rounded-xl transition-all",
-            activeTab === 'home' && !showSimulationCenter ? "text-cyber-blue" : "text-white/30"
-          )}
-        >
-          <Home className="w-5 h-5" />
-          <span className="text-[10px] font-bold uppercase">Home</span>
-        </button>
-        <button 
-          onClick={() => { setActiveTab('learningHub'); setShowSimulationCenter(false); }}
-          className={cn(
-            "flex flex-col items-center gap-1 p-2 rounded-xl transition-all",
-            activeTab === 'learningHub' && !showSimulationCenter ? "text-cyber-blue" : "text-white/30"
-          )}
-        >
-          <BookOpen className="w-5 h-5" />
-          <span className="text-[10px] font-bold uppercase">Learning Hub</span>
-        </button>
-        <button 
-          onClick={() => { setActiveTab('tools'); setShowSimulationCenter(false); }}
-          className={cn(
-            "flex flex-col items-center gap-1 p-2 rounded-xl transition-all",
-            activeTab === 'tools' && !showSimulationCenter ? "text-cyber-blue" : "text-white/30"
-          )}
-        >
-          <Wrench className="w-5 h-5" />
-          <span className="text-[10px] font-bold uppercase">Tools</span>
-        </button>
-        <button 
-          onClick={() => { setActiveTab('profile'); setShowSimulationCenter(false); }}
-          className={cn(
-            "flex flex-col items-center gap-1 p-2 rounded-xl transition-all",
-            activeTab === 'profile' && !showSimulationCenter ? "text-cyber-blue" : "text-white/30"
-          )}
-        >
-          <User className="w-5 h-5" />
-          <span className="text-[10px] font-bold uppercase">Profile</span>
-        </button>
+      <nav className="fixed bottom-0 left-0 right-0 w-full md:max-w-screen-2xl mx-auto bg-cyber-card/90 backdrop-blur-xl border-t border-white/10 p-2 z-20">
+        <div className="max-w-3xl mx-auto flex justify-around items-center w-full">
+          <button 
+            onClick={() => { setActiveTab('home'); setShowSimulationCenter(false); }}
+            className={cn(
+              "flex flex-col items-center gap-1 p-2 rounded-xl transition-all",
+              activeTab === 'home' && !showSimulationCenter ? "text-cyber-blue" : "text-white/30"
+            )}
+          >
+            <Home className="w-5 h-5" />
+            <span className="text-[10px] font-bold uppercase">Home</span>
+          </button>
+          <button 
+            onClick={() => { setActiveTab('learningHub'); setShowSimulationCenter(false); }}
+            className={cn(
+              "flex flex-col items-center gap-1 p-2 rounded-xl transition-all",
+              activeTab === 'learningHub' && !showSimulationCenter ? "text-cyber-blue" : "text-white/30"
+            )}
+          >
+            <BookOpen className="w-5 h-5" />
+            <span className="text-[10px] font-bold uppercase">Learning Hub</span>
+          </button>
+          <button 
+            onClick={() => { setActiveTab('tools'); setShowSimulationCenter(false); }}
+            className={cn(
+              "flex flex-col items-center gap-1 p-2 rounded-xl transition-all",
+              activeTab === 'tools' && !showSimulationCenter ? "text-cyber-blue" : "text-white/30"
+            )}
+          >
+            <Wrench className="w-5 h-5" />
+            <span className="text-[10px] font-bold uppercase">Tools</span>
+          </button>
+          <button 
+            onClick={() => { setActiveTab('profile'); setShowSimulationCenter(false); }}
+            className={cn(
+              "flex flex-col items-center gap-1 p-2 rounded-xl transition-all",
+              activeTab === 'profile' && !showSimulationCenter ? "text-cyber-blue" : "text-white/30"
+            )}
+          >
+            <User className="w-5 h-5" />
+            <span className="text-[10px] font-bold uppercase">Profile</span>
+          </button>
+        </div>
       </nav>
 
       {/* Logout Confirmation Modal */}

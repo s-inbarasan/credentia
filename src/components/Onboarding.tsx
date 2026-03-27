@@ -217,7 +217,7 @@ export function Onboarding({ user, onComplete }: OnboardingProps) {
       <motion.div 
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
-        className="z-10 max-w-md w-full bg-cyber-card border border-white/10 p-8 rounded-3xl shadow-2xl space-y-8"
+        className="z-10 max-w-xl w-full bg-cyber-card border border-white/10 p-8 rounded-3xl shadow-2xl space-y-8"
       >
         <div className="text-center space-y-2">
           <div className="mb-4 flex justify-center">

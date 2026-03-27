@@ -391,7 +391,7 @@ export function LearningHub({ userDoc, onCompleteTopic, onPassQuiz }: LearningHu
                 </div>
               </div>
 
-              <div className="grid gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                 {chapter.topics.map((topic, index) => {
                   const Icon = ICONS[topic.icon] || BookOpen;
                   const isCompleted = completedTopics.includes(topic.id);

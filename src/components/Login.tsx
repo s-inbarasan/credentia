@@ -121,7 +121,7 @@ export function Login({ onBack, onSuccess }: LoginProps) {
       <motion.div 
         initial={{ opacity: 0, scale: 0.95 }}
         animate={{ opacity: 1, scale: 1 }}
-        className="z-10 w-full max-w-md bg-cyber-card border border-white/10 p-8 rounded-3xl shadow-2xl relative"
+        className="z-10 w-full max-w-xl bg-cyber-card border border-white/10 p-8 rounded-3xl shadow-2xl relative"
       >
         <button 
           onClick={onBack}

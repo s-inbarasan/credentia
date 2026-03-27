@@ -21,7 +21,7 @@ export function LandingPage({ onLogin, onGuest }: LandingPageProps) {
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.6, ease: "easeOut" }}
-        className="z-10 max-w-md w-full flex flex-col items-center text-center space-y-8"
+        className="z-10 max-w-4xl w-full flex flex-col items-center text-center space-y-8 px-4"
       >
         {/* Logo & Branding Area */}
         <div className="flex flex-col items-center space-y-4">
