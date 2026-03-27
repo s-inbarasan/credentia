@@ -1,10 +1,11 @@
 import React, { useState, useRef } from 'react';
-import { motion } from 'motion/react';
+import { motion, AnimatePresence } from 'motion/react';
 import { Logo } from './Logo';
 import { User, Camera, ArrowRight, Loader2 } from 'lucide-react';
 import { supabase } from '../supabase';
 import { toast } from 'sonner';
 import { UserDocument } from '../types';
+import { ImageCropper } from './ImageCropper';
 
 interface OnboardingProps {
   user: { uid: string; email: string | null; displayName: string | null; photoURL: string | null };
@@ -14,6 +15,7 @@ interface OnboardingProps {
 export function Onboarding({ user, onComplete }: OnboardingProps) {
   const [username, setUsername] = useState(user.displayName || '');
   const [profileImage, setProfileImage] = useState<string | null>(user.photoURL || null);
+  const [cropImageSrc, setCropImageSrc] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
@@ -26,9 +28,19 @@ export function Onboarding({ user, onComplete }: OnboardingProps) {
 
     const reader = new FileReader();
     reader.onload = (event) => {
-      setProfileImage(event.target?.result as string);
+      setCropImageSrc(event.target?.result as string);
     };
     reader.readAsDataURL(file);
+    
+    // Reset input so the same file can be selected again if needed
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+  };
+
+  const handleCropComplete = (croppedImage: string) => {
+    setProfileImage(croppedImage);
+    setCropImageSrc(null);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -217,7 +229,7 @@ export function Onboarding({ user, onComplete }: OnboardingProps) {
       <motion.div 
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
-        className="z-10 max-w-xl w-full bg-cyber-card border border-white/10 p-8 rounded-3xl shadow-2xl space-y-8"
+        className={`z-10 max-w-xl w-full bg-cyber-card border border-white/10 p-8 rounded-3xl shadow-2xl space-y-8 transition-all duration-300 ${cropImageSrc ? 'blur-md scale-95 opacity-40 pointer-events-none' : ''}`}
       >
         <div className="text-center space-y-2">
           <div className="mb-4 flex justify-center">
@@ -295,6 +307,17 @@ export function Onboarding({ user, onComplete }: OnboardingProps) {
           </button>
         </form>
       </motion.div>
+
+      {/* Image Cropper Modal */}
+      <AnimatePresence>
+        {cropImageSrc && (
+          <ImageCropper
+            imageSrc={cropImageSrc}
+            onCropComplete={handleCropComplete}
+            onCancel={() => setCropImageSrc(null)}
+          />
+        )}
+      </AnimatePresence>
     </div>
   );
 }

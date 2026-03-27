@@ -11,6 +11,11 @@ async function startServer() {
     res.json({ status: "ok" });
   });
 
+  // Serve presentation.html directly
+  app.get("/presentation.html", (req, res) => {
+    res.sendFile(path.join(process.cwd(), 'public', 'presentation.html'));
+  });
+
   // Example OpenAI route (placeholder for future use)
   app.post("/api/openai", express.json(), async (req, res) => {
     const apiKey = process.env.OPENAI_API_KEY;

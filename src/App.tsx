@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Logo } from './components/Logo';
+import { ImageCropper } from './components/ImageCropper';
 import { 
   Shield, 
   MessageSquare, 
@@ -34,7 +35,8 @@ import {
   PlayCircle,
   BookOpen,
   Home,
-  Wrench
+  Wrench,
+  UserCheck
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { clsx, type ClassValue } from 'clsx';
@@ -121,8 +123,32 @@ export default function App() {
   const [isSavingProfile, setIsSavingProfile] = useState(false);
   const [isResetting, setIsResetting] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
+  const [isQuizActive, setIsQuizActive] = useState(false);
+  const [welcomeMessage, setWelcomeMessage] = useState<{ text: string, type: 'login' | 'signup' } | null>(null);
+  const [cropImageSrc, setCropImageSrc] = useState<string | null>(null);
+  const hasShownWelcome = React.useRef(false);
 
   const [isSavingSettings, setIsSavingSettings] = useState(false);
+
+  useEffect(() => {
+    if (user && userDoc && !hasShownWelcome.current) {
+      hasShownWelcome.current = true;
+      const isNew = new Date().getTime() - new Date(userDoc.createdAt).getTime() < 10000;
+      setWelcomeMessage({
+        text: isNew ? `Profile created successfully, Agent ${userDoc.name}` : `Welcome back, ${userDoc.name}`,
+        type: isNew ? 'signup' : 'login'
+      });
+      
+      const timer = setTimeout(() => {
+        setWelcomeMessage(null);
+      }, 3000);
+      return () => clearTimeout(timer);
+    }
+    
+    if (!user) {
+      hasShownWelcome.current = false;
+    }
+  }, [user, userDoc?.createdAt, userDoc?.name]);
 
   const handleSaveSettings = async (newPrefs: typeof preferences) => {
     if (user && userDoc) {
@@ -709,35 +735,17 @@ export default function App() {
 
     const reader = new FileReader();
     reader.onload = (event) => {
-      const img = new Image();
-      img.onload = () => {
-        const canvas = document.createElement('canvas');
-        const MAX_WIDTH = 150;
-        const MAX_HEIGHT = 150;
-        let width = img.width;
-        let height = img.height;
-
-        if (width > height) {
-          if (width > MAX_WIDTH) {
-            height *= MAX_WIDTH / width;
-            width = MAX_WIDTH;
-          }
-        } else {
-          if (height > MAX_HEIGHT) {
-            width *= MAX_HEIGHT / height;
-            height = MAX_HEIGHT;
-          }
-        }
-        canvas.width = width;
-        canvas.height = height;
-        const ctx = canvas.getContext('2d');
-        ctx?.drawImage(img, 0, 0, width, height);
-        const dataUrl = canvas.toDataURL('image/jpeg', 0.7);
-        setEditPhotoURL(dataUrl);
-      };
-      img.src = event.target?.result as string;
+      setCropImageSrc(event.target?.result as string);
     };
     reader.readAsDataURL(file);
+    
+    // Reset input
+    e.target.value = '';
+  };
+
+  const handleCropComplete = (croppedImage: string) => {
+    setEditPhotoURL(croppedImage);
+    setCropImageSrc(null);
   };
 
   const saveProfile = async () => {
@@ -915,7 +923,7 @@ export default function App() {
               initial={{ scale: 0.9, y: 20 }}
               animate={{ scale: 1, y: 0 }}
               exit={{ scale: 0.9, y: 20 }}
-              className="bg-cyber-card border border-white/10 rounded-3xl p-6 w-full max-w-sm"
+              className={`bg-cyber-card border border-white/10 rounded-3xl p-6 w-full max-w-sm transition-all duration-300 ${cropImageSrc ? 'blur-md scale-95 opacity-40 pointer-events-none' : ''}`}
             >
               <div className="flex justify-between items-center mb-6">
                 <h3 className="text-lg font-bold">Edit Profile</h3>
@@ -964,6 +972,17 @@ export default function App() {
               </div>
             </motion.div>
           </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Image Cropper Modal */}
+      <AnimatePresence>
+        {cropImageSrc && (
+          <ImageCropper
+            imageSrc={cropImageSrc}
+            onCropComplete={handleCropComplete}
+            onCancel={() => setCropImageSrc(null)}
+          />
         )}
       </AnimatePresence>
 
@@ -1037,12 +1056,33 @@ export default function App() {
             animate={{ opacity: 1, y: 0 }}
             className="space-y-6"
           >
+            {/* Welcome Message Toast */}
+            <AnimatePresence>
+              {welcomeMessage && (
+                <motion.div
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -20 }}
+                  transition={{ duration: 0.5, ease: "easeInOut" }}
+                  className={cn(
+                    "flex items-center gap-3 px-4 py-3 rounded-xl border shadow-lg mb-4",
+                    welcomeMessage.type === 'signup' 
+                      ? "bg-cyber-green/10 border-cyber-green/30 text-cyber-green" 
+                      : "bg-cyber-blue/10 border-cyber-blue/30 text-cyber-blue"
+                  )}
+                >
+                  {welcomeMessage.type === 'signup' ? <UserCheck className="w-5 h-5" /> : <Shield className="w-5 h-5" />}
+                  <p className="text-sm font-medium">{welcomeMessage.text}</p>
+                </motion.div>
+              )}
+            </AnimatePresence>
+
             {/* Top Row: Welcome & Profile */}
             <div className="flex items-center justify-between px-2">
               <div className="flex flex-col">
                 <div className="flex items-center gap-2">
                   <h2 className="text-xl md:text-2xl font-bold">
-                    {user && userDoc ? `Welcome back, ${userDoc.name}` : "Welcome, Guest"}
+                    {user ? "Agent Dashboard" : "Welcome, Guest"}
                   </h2>
                   {user ? (
                     <div className="flex items-center gap-1 bg-cyber-green/10 border border-cyber-green/30 px-2 py-0.5 rounded-full">
@@ -1322,6 +1362,7 @@ export default function App() {
             userDoc={userDoc} 
             onCompleteTopic={handleCompleteTopic}
             onPassQuiz={handlePassQuiz}
+            onQuizStateChange={setIsQuizActive}
           />
         ) : activeTab === 'profile' ? (
           <motion.div 
@@ -1467,12 +1508,14 @@ export default function App() {
       />
 
       {/* Floating AI Mentor Button */}
-      <button
-        onClick={() => setShowChatPanel(true)}
-        className="fixed bottom-20 right-4 w-14 h-14 bg-cyber-blue/20 border border-cyber-blue/50 rounded-full shadow-[0_0_20px_rgba(0,255,255,0.4)] flex items-center justify-center hover:scale-110 transition-transform z-30 overflow-hidden"
-      >
-        <Logo size="sm" variant="ai" glow />
-      </button>
+      {!isQuizActive && (
+        <button
+          onClick={() => setShowChatPanel(true)}
+          className="fixed bottom-20 right-4 w-14 h-14 bg-cyber-blue/20 border border-cyber-blue/50 rounded-full shadow-[0_0_20px_rgba(0,255,255,0.4)] flex items-center justify-center hover:scale-110 transition-transform z-30 overflow-hidden"
+        >
+          <Logo size="sm" variant="ai" glow />
+        </button>
+      )}
 
       {/* Chat Panel Overlay */}
       <AnimatePresence>

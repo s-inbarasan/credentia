@@ -1,28 +1,37 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { BookOpen, Shield, Lock, Key, Eye, AlertTriangle, Server, Globe, Database, Cpu, Wifi, CheckCircle, ArrowLeft, ChevronRight, PlayCircle } from 'lucide-react';
+import { BookOpen, Shield, Lock, Key, Eye, AlertTriangle, Server, Globe, Database, Cpu, Wifi, CheckCircle, ArrowLeft, ChevronRight, PlayCircle, Smartphone, Mail, EyeOff, UserCheck } from 'lucide-react';
 import { cn } from '../utils/cn';
-import { LEARNING_TOPICS } from '../data/learningTopics';
-import { Topic, UserDocument } from '../types';
+import { LEARNING_TOPICS, CHAPTER_TESTS } from '../data/learningTopics';
+import { Topic, UserDocument, QuizQuestion } from '../types';
 
 interface LearningHubProps {
   userDoc: UserDocument | null;
   onCompleteTopic: (topicId: string, xpReward: number) => void;
   onPassQuiz: (topicId: string, score: number) => void;
+  onQuizStateChange?: (isActive: boolean) => void;
 }
 
 const ICONS: Record<string, React.ElementType> = {
-  Shield, Lock, Key, Eye, AlertTriangle, Server, Globe, Database, Cpu, Wifi, BookOpen
+  Shield, Lock, Key, Eye, AlertTriangle, Server, Globe, Database, Cpu, Wifi, BookOpen, Smartphone, Mail, EyeOff, UserCheck
 };
 
-export function LearningHub({ userDoc, onCompleteTopic, onPassQuiz }: LearningHubProps) {
+export function LearningHub({ userDoc, onCompleteTopic, onPassQuiz, onQuizStateChange }: LearningHubProps) {
   const [selectedTopic, setSelectedTopic] = useState<Topic | null>(null);
   const [activeQuiz, setActiveQuiz] = useState<Topic | null>(null);
+  const [activeChapterTest, setActiveChapterTest] = useState<{ chapterId: string, title: string, questions: QuizQuestion[] } | null>(null);
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
   const [quizScore, setQuizScore] = useState(0);
   const [showQuizResult, setShowQuizResult] = useState(false);
   const [selectedAnswer, setSelectedAnswer] = useState<number | null>(null);
   const [isAnswerCorrect, setIsAnswerCorrect] = useState<boolean | null>(null);
+
+  React.useEffect(() => {
+    if (onQuizStateChange) {
+      const isQuizActive = (!!activeQuiz || !!activeChapterTest) && !showQuizResult;
+      onQuizStateChange(isQuizActive);
+    }
+  }, [activeQuiz, activeChapterTest, showQuizResult, onQuizStateChange]);
 
   const completedTopics = userDoc?.completedTopics || [];
   const quizScores = userDoc?.quizScores || {};
@@ -34,6 +43,7 @@ export function LearningHub({ userDoc, onCompleteTopic, onPassQuiz }: LearningHu
   const handleBack = () => {
     setSelectedTopic(null);
     setActiveQuiz(null);
+    setActiveChapterTest(null);
     setShowQuizResult(false);
     setCurrentQuestionIndex(0);
     setQuizScore(0);
@@ -43,6 +53,18 @@ export function LearningHub({ userDoc, onCompleteTopic, onPassQuiz }: LearningHu
 
   const startQuiz = () => {
     setActiveQuiz(selectedTopic);
+    setActiveChapterTest(null);
+    setCurrentQuestionIndex(0);
+    setQuizScore(0);
+    setShowQuizResult(false);
+    setSelectedAnswer(null);
+    setIsAnswerCorrect(null);
+  };
+
+  const startChapterTest = (chapterId: string, title: string) => {
+    setActiveChapterTest({ chapterId, title, questions: CHAPTER_TESTS[chapterId] || [] });
+    setActiveQuiz(null);
+    setSelectedTopic(null);
     setCurrentQuestionIndex(0);
     setQuizScore(0);
     setShowQuizResult(false);
@@ -51,10 +73,12 @@ export function LearningHub({ userDoc, onCompleteTopic, onPassQuiz }: LearningHu
   };
 
   const handleAnswerSubmit = (index: number) => {
-    if (selectedAnswer !== null || !activeQuiz) return;
+    if (selectedAnswer !== null || (!activeQuiz && !activeChapterTest)) return;
     
     setSelectedAnswer(index);
-    const correct = index === activeQuiz.quiz[currentQuestionIndex].correctAnswerIndex;
+    const correct = activeQuiz 
+      ? index === activeQuiz.quiz[currentQuestionIndex].correctAnswerIndex
+      : index === activeChapterTest!.questions[currentQuestionIndex].correctAnswerIndex;
     setIsAnswerCorrect(correct);
     
     if (correct) {
@@ -63,19 +87,28 @@ export function LearningHub({ userDoc, onCompleteTopic, onPassQuiz }: LearningHu
   };
 
   const nextQuestion = () => {
-    if (!activeQuiz) return;
+    if (!activeQuiz && !activeChapterTest) return;
     
-    if (currentQuestionIndex < activeQuiz.quiz.length - 1) {
+    const totalQuestions = activeQuiz ? activeQuiz.quiz.length : activeChapterTest!.questions.length;
+    
+    if (currentQuestionIndex < totalQuestions - 1) {
       setCurrentQuestionIndex(prev => prev + 1);
       setSelectedAnswer(null);
       setIsAnswerCorrect(null);
     } else {
       setShowQuizResult(true);
-      const percentage = (quizScore / activeQuiz.quiz.length) * 100;
+      const percentage = (quizScore / totalQuestions) * 100;
       if (percentage >= 70) {
-        onPassQuiz(activeQuiz.id, percentage);
-        if (!completedTopics.includes(activeQuiz.id)) {
-          onCompleteTopic(activeQuiz.id, 50); // 50 XP for completing a topic
+        if (activeQuiz) {
+          onPassQuiz(activeQuiz.id, percentage);
+          if (!completedTopics.includes(activeQuiz.id)) {
+            onCompleteTopic(activeQuiz.id, 50); // 50 XP for completing a topic
+          }
+        } else if (activeChapterTest) {
+          onPassQuiz(`test-${activeChapterTest.chapterId}`, percentage);
+          if (!completedTopics.includes(`test-${activeChapterTest.chapterId}`)) {
+            onCompleteTopic(`test-${activeChapterTest.chapterId}`, 200); // 200 XP for chapter test
+          }
         }
       }
     }
@@ -91,8 +124,9 @@ export function LearningHub({ userDoc, onCompleteTopic, onPassQuiz }: LearningHu
     }
   };
 
-  if (showQuizResult && activeQuiz) {
-    const percentage = (quizScore / activeQuiz.quiz.length) * 100;
+  if (showQuizResult && (activeQuiz || activeChapterTest)) {
+    const totalQuestions = activeQuiz ? activeQuiz.quiz.length : activeChapterTest!.questions.length;
+    const percentage = (quizScore / totalQuestions) * 100;
     const passed = percentage >= 70;
 
     return (
@@ -114,14 +148,14 @@ export function LearningHub({ userDoc, onCompleteTopic, onPassQuiz }: LearningHu
           </div>
           
           <div>
-            <h2 className="text-2xl font-bold">{passed ? 'Quiz Passed!' : 'Quiz Failed'}</h2>
-            <p className="text-white/60 mt-2">You scored {quizScore} out of {activeQuiz.quiz.length} ({Math.round(percentage)}%)</p>
+            <h2 className="text-2xl font-bold">{passed ? (activeChapterTest ? 'Chapter Test Passed!' : 'Quiz Passed!') : (activeChapterTest ? 'Chapter Test Failed' : 'Quiz Failed')}</h2>
+            <p className="text-white/60 mt-2">You scored {quizScore} out of {totalQuestions} ({Math.round(percentage)}%)</p>
           </div>
 
           {passed ? (
             <div className="bg-cyber-blue/10 border border-cyber-blue/20 rounded-xl p-4 text-cyber-blue">
-              <p className="font-bold">+50 XP Earned</p>
-              <p className="text-xs opacity-80">Topic marked as completed.</p>
+              <p className="font-bold">+{activeChapterTest ? '200' : '50'} XP Earned</p>
+              <p className="text-xs opacity-80">{activeChapterTest ? 'Chapter completed.' : 'Topic marked as completed.'}</p>
             </div>
           ) : (
             <p className="text-sm text-white/50">You need at least 70% to pass. Review the material and try again.</p>
@@ -129,10 +163,10 @@ export function LearningHub({ userDoc, onCompleteTopic, onPassQuiz }: LearningHu
 
           <div className="flex gap-4 justify-center pt-4">
             <button 
-              onClick={startQuiz}
+              onClick={activeChapterTest ? () => startChapterTest(activeChapterTest.chapterId, activeChapterTest.title) : startQuiz}
               className="px-6 py-3 rounded-xl font-bold text-sm bg-white/5 hover:bg-white/10 transition-colors"
             >
-              Retry Quiz
+              Retry {activeChapterTest ? 'Test' : 'Quiz'}
             </button>
             <button 
               onClick={handleBack}
@@ -146,8 +180,11 @@ export function LearningHub({ userDoc, onCompleteTopic, onPassQuiz }: LearningHu
     );
   }
 
-  if (activeQuiz) {
-    const question = activeQuiz.quiz[currentQuestionIndex];
+  if (activeQuiz || activeChapterTest) {
+    const question = activeQuiz 
+      ? activeQuiz.quiz[currentQuestionIndex]
+      : activeChapterTest!.questions[currentQuestionIndex];
+    const totalQuestions = activeQuiz ? activeQuiz.quiz.length : activeChapterTest!.questions.length;
     return (
       <motion.div 
         initial={{ opacity: 0, x: 20 }}
@@ -155,11 +192,11 @@ export function LearningHub({ userDoc, onCompleteTopic, onPassQuiz }: LearningHu
         className="space-y-6"
       >
         <div className="flex items-center justify-between">
-          <button onClick={() => setActiveQuiz(null)} className="flex items-center gap-2 text-white/50 hover:text-white transition-colors">
-            <ArrowLeft className="w-4 h-4" /> Exit Quiz
+          <button onClick={() => { setActiveQuiz(null); setActiveChapterTest(null); }} className="flex items-center gap-2 text-white/50 hover:text-white transition-colors">
+            <ArrowLeft className="w-4 h-4" /> Exit {activeChapterTest ? 'Test' : 'Quiz'}
           </button>
           <span className="text-xs font-bold text-white/50 bg-white/5 px-3 py-1 rounded-full">
-            Question {currentQuestionIndex + 1} of {activeQuiz.quiz.length}
+            Question {currentQuestionIndex + 1} of {totalQuestions}
           </span>
         </div>
 
@@ -296,6 +333,13 @@ export function LearningHub({ userDoc, onCompleteTopic, onPassQuiz }: LearningHu
                 ))}
               </ul>
             </section>
+
+            <section className="bg-cyber-blue/5 p-4 rounded-xl border border-cyber-blue/20">
+              <h3 className="text-sm font-bold text-cyber-blue uppercase tracking-wider mb-2 flex items-center gap-2">
+                <BookOpen className="w-4 h-4" /> Key Takeaway
+              </h3>
+              <p className="text-white/90 leading-relaxed font-medium">{selectedTopic.summary}</p>
+            </section>
           </div>
 
           <div className="pt-6 border-t border-white/10">
@@ -399,7 +443,18 @@ export function LearningHub({ userDoc, onCompleteTopic, onPassQuiz }: LearningHu
                   
                   // Find the global index of this topic to determine if it's unlocked
                   const globalIndex = LEARNING_TOPICS.findIndex(t => t.id === topic.id);
-                  const isUnlocked = globalIndex === 0 || completedTopics.includes(LEARNING_TOPICS[globalIndex - 1].id);
+                  let isUnlocked = false;
+                  if (globalIndex === 0) {
+                    isUnlocked = true;
+                  } else {
+                    const prevTopic = LEARNING_TOPICS[globalIndex - 1];
+                    if (prevTopic.chapterId !== topic.chapterId) {
+                      // It's the first topic of a new chapter
+                      isUnlocked = completedTopics.includes(`test-${prevTopic.chapterId}`);
+                    } else {
+                      isUnlocked = completedTopics.includes(prevTopic.id);
+                    }
+                  }
 
                   return (
                     <button
@@ -437,6 +492,53 @@ export function LearningHub({ userDoc, onCompleteTopic, onPassQuiz }: LearningHu
                     </button>
                   );
                 })}
+              </div>
+
+              <div className="mt-4">
+                {(() => {
+                  const allTopicsCompleted = chapter.topics.every(t => completedTopics.includes(t.id));
+                  const testCompleted = completedTopics.includes(`test-${chapter.id}`);
+                  const testScore = quizScores[`test-${chapter.id}`];
+
+                  return (
+                    <button
+                      onClick={() => allTopicsCompleted && startChapterTest(chapter.id, `${chapter.title} - Final Test`)}
+                      disabled={!allTopicsCompleted}
+                      className={cn(
+                        "w-full p-4 rounded-2xl border transition-all text-left flex items-center justify-between group",
+                        allTopicsCompleted 
+                          ? "bg-cyber-blue/10 border-cyber-blue/30 hover:bg-cyber-blue/20 cursor-pointer" 
+                          : "bg-cyber-card border-white/5 opacity-50 cursor-not-allowed"
+                      )}
+                    >
+                      <div className="flex items-center gap-4">
+                        <div className={cn(
+                          "p-3 rounded-xl shrink-0 transition-colors",
+                          allTopicsCompleted ? "bg-cyber-blue/20 text-cyber-blue" : "bg-gray-800 text-gray-500"
+                        )}>
+                          {allTopicsCompleted ? <Shield className="w-6 h-6" /> : <Lock className="w-6 h-6" />}
+                        </div>
+                        <div>
+                          <h3 className={cn("font-bold text-lg", allTopicsCompleted ? "text-cyber-blue" : "text-gray-500")}>
+                            Chapter {chapterIndex + 1} Final Test
+                          </h3>
+                          <p className="text-sm text-white/50">
+                            {allTopicsCompleted ? "Ready to test your knowledge!" : "Complete all topics to unlock"}
+                          </p>
+                        </div>
+                      </div>
+                      
+                      <div className="flex items-center gap-4">
+                        {testCompleted && (
+                          <span className="text-sm font-bold text-green-400 flex items-center gap-1 bg-green-500/10 px-3 py-1 rounded-full border border-green-500/20">
+                            <CheckCircle className="w-4 h-4" /> {testScore}%
+                          </span>
+                        )}
+                        {allTopicsCompleted && <ChevronRight className="w-6 h-6 text-cyber-blue" />}
+                      </div>
+                    </button>
+                  );
+                })()}
               </div>
             </div>
           );
