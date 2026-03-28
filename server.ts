@@ -26,6 +26,8 @@ async function startServer() {
     res.json({ message: "OpenAI endpoint ready" });
   });
 
+  // Breach monitoring proxy route
+
   // Vite middleware for development
   if (process.env.NODE_ENV !== "production") {
     const vite = await createViteServer({

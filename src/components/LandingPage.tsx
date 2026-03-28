@@ -1,7 +1,9 @@
-import React from 'react';
-import { ShieldCheck, Activity, Bot, Lock, User } from 'lucide-react';
+import React, { useState, useEffect, useRef } from 'react';
+import { ShieldCheck, Activity, Bot, LogIn, User, ArrowRight, Shield, Globe, Cpu } from 'lucide-react';
 import { Logo } from './Logo';
-import { motion } from 'motion/react';
+import { motion, AnimatePresence } from 'motion/react';
+import { ThreeBackground } from './ThreeBackground';
+import gsap from 'gsap';
 
 interface LandingPageProps {
   onLogin: () => void;
@@ -9,72 +11,90 @@ interface LandingPageProps {
 }
 
 export function LandingPage({ onLogin, onGuest }: LandingPageProps) {
+  const containerVariants: any = {
+    hidden: { opacity: 0, scale: 0.98 },
+    visible: {
+      opacity: 1,
+      scale: 1,
+      transition: {
+        staggerChildren: 0.1,
+        delayChildren: 0.2,
+        duration: 0.4,
+        ease: [0.23, 1, 0.32, 1],
+      },
+    },
+  };
+
+  const itemVariants: any = {
+    hidden: { opacity: 0, y: 15 },
+    visible: {
+      opacity: 1,
+      y: 0,
+      transition: {
+        duration: 0.4,
+        ease: [0.23, 1, 0.32, 1],
+      },
+    },
+  };
+
   return (
-    <div className="min-h-screen bg-cyber-bg text-white flex flex-col items-center justify-center p-6 relative overflow-hidden">
-      {/* Background Effects */}
-      <div className="absolute top-0 left-0 w-full h-full overflow-hidden pointer-events-none">
-        <div className="absolute top-[-20%] left-[-10%] w-[50%] h-[50%] bg-cyber-blue/10 blur-[120px] rounded-full" />
-        <div className="absolute bottom-[-20%] right-[-10%] w-[50%] h-[50%] bg-cyber-purple/10 blur-[120px] rounded-full" />
-      </div>
+    <div className="min-h-screen bg-black text-white flex flex-col items-center justify-center p-6 relative overflow-y-auto no-scrollbar">
+      <ThreeBackground />
 
       <motion.div 
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.6, ease: "easeOut" }}
-        className="z-10 max-w-4xl w-full flex flex-col items-center text-center space-y-8 px-4"
+        variants={containerVariants}
+        initial="hidden"
+        animate="visible"
+        className="z-10 max-w-2xl w-full flex flex-col items-center text-center"
       >
-        {/* Logo & Branding Area */}
-        <div className="flex flex-col items-center space-y-4">
-          <Logo size="lg" glow />
-          <div className="space-y-2">
-            <h1 className="text-4xl md:text-5xl font-bold tracking-[0.15em] text-white drop-shadow-[0_0_15px_rgba(0,242,255,0.4)]">
-              CREDENTIA
-            </h1>
-            <p className="text-cyber-blue/80 text-sm md:text-base font-medium tracking-wide">
-              Where Identity Meets Defense
-            </p>
-          </div>
-        </div>
+        {/* Logo Area */}
+        <motion.div variants={itemVariants} className="relative mb-8">
+          <Logo size="md" glow />
+        </motion.div>
+        
+        {/* Title Area */}
+        <motion.div variants={itemVariants} className="mb-8 md:mb-12 space-y-2">
+          <h1 className="text-4xl md:text-6xl font-bold tracking-tight uppercase">
+            Credentia
+          </h1>
+          <p className="text-cyber-blue text-[10px] md:text-xs font-bold tracking-[0.3em] md:tracking-[0.4em] uppercase opacity-60">
+            Future of AI Defense
+          </p>
+        </motion.div>
 
-        {/* Action Buttons */}
-        <div className="w-full space-y-4 pt-2">
-          <motion.button 
-            whileHover={{ scale: 1.03 }}
-            whileTap={{ scale: 0.98 }}
+        {/* Action Buttons - Minimal Glass */}
+        <motion.div variants={itemVariants} className="w-full max-w-[280px] md:max-w-sm flex flex-col gap-3 md:gap-4">
+          <button 
             onClick={onLogin}
-            className="w-full bg-cyber-blue text-black font-bold py-4 rounded-xl transition-all flex items-center justify-center gap-3 shadow-[0_0_20px_rgba(0,242,255,0.3)] hover:shadow-[0_0_30px_rgba(0,242,255,0.5)] border border-cyber-blue/50"
+            className="group relative w-full bg-cyber-blue/10 backdrop-blur-md border border-cyber-blue/30 rounded-2xl py-3.5 md:py-4 px-6 transition-all hover:bg-cyber-blue/20 hover:border-cyber-blue/50"
           >
-            <Lock className="w-5 h-5" />
-            Login / Sign Up
-          </motion.button>
+            <div className="flex items-center justify-center gap-3">
+              <LogIn className="w-4 h-4 md:w-5 md:h-5 text-cyber-blue" />
+              <span className="text-base md:text-lg font-bold tracking-wider uppercase">Log In / Sign Up</span>
+            </div>
+          </button>
           
-          <motion.button 
-            whileHover={{ scale: 1.03 }}
-            whileTap={{ scale: 0.98 }}
+          <button 
             onClick={onGuest}
-            className="w-full bg-white/5 backdrop-blur-md border border-white/10 text-white font-bold py-4 rounded-xl hover:bg-white/10 hover:border-white/20 transition-all flex items-center justify-center gap-3"
+            className="group relative w-full bg-white/5 backdrop-blur-sm border border-white/10 rounded-2xl py-3.5 md:py-4 px-6 transition-all hover:bg-white/10 hover:border-white/20"
           >
-            <User className="w-5 h-5 text-white/50" />
-            Continue as Guest
-          </motion.button>
-        </div>
-
-        {/* Feature Indicators */}
-        <div className="pt-6 flex flex-wrap justify-center gap-3 text-xs text-white/60">
-          <div className="flex items-center gap-1.5 bg-black/30 px-3 py-1.5 rounded-full border border-white/5 backdrop-blur-sm">
-            <Bot className="w-3.5 h-3.5 text-cyber-blue" />
-            <span>AI Powered</span>
-          </div>
-          <div className="flex items-center gap-1.5 bg-black/30 px-3 py-1.5 rounded-full border border-white/5 backdrop-blur-sm">
-            <ShieldCheck className="w-3.5 h-3.5 text-cyber-green" />
-            <span>Secure Login</span>
-          </div>
-          <div className="flex items-center gap-1.5 bg-black/30 px-3 py-1.5 rounded-full border border-white/5 backdrop-blur-sm">
-            <Activity className="w-3.5 h-3.5 text-cyber-purple" />
-            <span>Real-time Analysis</span>
-          </div>
-        </div>
+            <div className="flex items-center justify-center gap-3">
+              <User className="w-4 h-4 md:w-5 md:h-5 text-white/40 group-hover:text-white" />
+              <span className="text-base md:text-lg font-bold tracking-wider uppercase text-white/40 group-hover:text-white">Guest</span>
+            </div>
+          </button>
+        </motion.div>
       </motion.div>
+
+      {/* Subtle Bottom Status */}
+      <div className="absolute bottom-8 left-1/2 -translate-x-1/2 flex items-center gap-6 text-[10px] font-medium tracking-[0.2em] uppercase text-white/20">
+        <div className="flex items-center gap-2">
+          <div className="w-1.5 h-1.5 rounded-full bg-cyber-green/50" />
+          <span>Neural Link Active</span>
+        </div>
+        <div className="w-px h-3 bg-white/10" />
+        <span>v4.0.0</span>
+      </div>
     </div>
   );
 }

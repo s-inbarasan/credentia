@@ -91,7 +91,7 @@ export function ImageCropper({ imageSrc, onCropComplete, onCancel }: ImageCroppe
         animate={{ opacity: 1, scale: 1, y: 0 }}
         exit={{ opacity: 0, scale: 0.9, y: 20 }}
         transition={{ type: "spring", duration: 0.5 }}
-        className="bg-cyber-card border border-white/10 rounded-3xl p-6 w-full max-w-md flex flex-col shadow-2xl"
+        className="bg-cyber-card border border-white/10 rounded-3xl p-5 md:p-6 w-full max-w-md flex flex-col shadow-2xl"
       >
         <div className="flex justify-between items-center mb-4">
           <h3 className="text-lg font-bold">Crop Profile Image</h3>
@@ -100,7 +100,7 @@ export function ImageCropper({ imageSrc, onCropComplete, onCancel }: ImageCroppe
           </button>
         </div>
 
-        <div className="relative w-full h-64 bg-black/50 rounded-xl overflow-hidden mb-6">
+        <div className="relative w-full h-48 md:h-64 bg-black/50 rounded-xl overflow-hidden mb-6">
           <Cropper
             image={imageSrc}
             crop={crop}

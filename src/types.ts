@@ -56,7 +56,6 @@ export interface UserDocument {
     strongPasswords: number;
     phishingDetected: number;
     toolsUsed: string[];
-    simulationsCompleted: number;
     topicsCompleted: number;
     quizzesPassed: number;
   };
@@ -68,7 +67,6 @@ export interface UserDocument {
   };
   completedTopics: string[];
   quizScores: Record<string, number>;
-  simulationScores: Record<string, number>;
   chatSessions?: ChatSession[];
   riskScore: number;
   lastAnalyzed?: string;
@@ -98,16 +96,4 @@ export interface Topic {
   securityTips: string[];
   summary: string;
   quiz: QuizQuestion[];
-}
-
-export interface SimulationScenario {
-  id: string;
-  title: string;
-  type: 'Phishing' | 'FakeLogin' | 'SuspiciousLink' | 'SocialEngineering';
-  description: string;
-  content: string; // URL, email body, or scenario details
-  correctAnswer: 'Safe' | 'Suspicious' | 'Malicious';
-  explanation: string;
-  prevention: string;
-  xpReward: number;
 }

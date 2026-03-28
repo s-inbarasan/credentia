@@ -7,6 +7,8 @@ import { toast } from 'sonner';
 import { UserDocument } from '../types';
 import { ImageCropper } from './ImageCropper';
 
+import { ThreeBackground } from './ThreeBackground';
+
 interface OnboardingProps {
   user: { uid: string; email: string | null; displayName: string | null; photoURL: string | null };
   onComplete: (profile: UserDocument) => void;
@@ -21,6 +23,33 @@ export function Onboarding({ user, onComplete }: OnboardingProps) {
   const [submitError, setSubmitError] = useState<string | null>(null);
   const isSubmittingRef = useRef(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const containerVariants: any = {
+    hidden: { opacity: 0, y: 20, scale: 0.98 },
+    visible: {
+      opacity: 1,
+      y: 0,
+      scale: 1,
+      transition: {
+        staggerChildren: 0.08,
+        delayChildren: 0.1,
+        duration: 0.4,
+        ease: [0.23, 1, 0.32, 1],
+      },
+    },
+  };
+
+  const itemVariants: any = {
+    hidden: { opacity: 0, y: 15 },
+    visible: {
+      opacity: 1,
+      y: 0,
+      transition: { 
+        duration: 0.4,
+        ease: [0.23, 1, 0.32, 1]
+      },
+    },
+  };
 
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -104,7 +133,6 @@ export function Onboarding({ user, onComplete }: OnboardingProps) {
         phishingDetected: 0,
         threatsAnalyzed: 0,
         toolsUsed: [],
-        simulationsCompleted: 0,
         topicsCompleted: 0,
         quizzesPassed: 0
       };
@@ -120,7 +148,6 @@ export function Onboarding({ user, onComplete }: OnboardingProps) {
         badges: [],
         completed_topics: [],
         quiz_scores: {},
-        simulation_scores: {},
         stats: defaultStats,
         risk_score: 15,
         preferences: {
@@ -157,7 +184,6 @@ export function Onboarding({ user, onComplete }: OnboardingProps) {
         badges: profileData.badges,
         completedTopics: profileData.completed_topics,
         quizScores: profileData.quiz_scores,
-        simulationScores: profileData.simulation_scores,
         stats: profileData.stats,
         riskScore: profileData.risk_score,
         preferences: profileData.preferences
@@ -170,11 +196,11 @@ export function Onboarding({ user, onComplete }: OnboardingProps) {
       
       console.log('Onboarding: Final userDoc ready:', userDoc);
       
-      // Give the user 2 seconds to see the success state
+      // Give the user 1.2 seconds to see the success state
       setTimeout(() => {
         console.log('Onboarding: Calling onComplete after delay');
         onComplete(userDoc);
-      }, 2000);
+      }, 1200);
       
     } catch (error: any) {
       clearTimeout(timeoutId);
@@ -193,10 +219,8 @@ export function Onboarding({ user, onComplete }: OnboardingProps) {
 
   if (isSuccess) {
     return (
-      <div className="min-h-screen bg-cyber-bg text-white flex flex-col items-center justify-center p-6 relative overflow-hidden">
-        <div className="absolute top-0 left-0 w-full h-full overflow-hidden pointer-events-none">
-          <div className="absolute top-[-20%] left-[-10%] w-[50%] h-[50%] bg-cyber-green/20 blur-[120px] rounded-full" />
-        </div>
+      <div className="min-h-screen bg-black text-white flex flex-col items-center justify-center p-6 relative overflow-hidden">
+        <ThreeBackground isWarping={true} />
         <motion.div 
           initial={{ scale: 0.8, opacity: 0 }}
           animate={{ scale: 1, opacity: 1 }}
@@ -207,11 +231,11 @@ export function Onboarding({ user, onComplete }: OnboardingProps) {
           </div>
           <div className="space-y-2">
             <h2 className="text-3xl font-bold text-cyber-green">Access Granted</h2>
-            <p className="text-white/60">Welcome to CREDENTIA, Agent {username}</p>
+            <p className="text-white/60">Welcome to CREDENTIA, {username}</p>
           </div>
           <div className="flex items-center justify-center gap-2 text-cyber-green/60 font-mono text-sm">
             <Loader2 className="w-4 h-4 animate-spin" />
-            Synchronizing Neural Link...
+            Setting up your account...
           </div>
         </motion.div>
       </div>
@@ -219,29 +243,27 @@ export function Onboarding({ user, onComplete }: OnboardingProps) {
   }
 
   return (
-    <div className="min-h-screen bg-cyber-bg text-white flex flex-col items-center justify-center p-6 relative overflow-hidden">
-      {/* Background Effects */}
-      <div className="absolute top-0 left-0 w-full h-full overflow-hidden pointer-events-none">
-        <div className="absolute top-[-20%] left-[-10%] w-[50%] h-[50%] bg-cyber-blue/20 blur-[120px] rounded-full" />
-        <div className="absolute bottom-[-20%] right-[-10%] w-[50%] h-[50%] bg-cyber-purple/20 blur-[120px] rounded-full" />
-      </div>
+    <div className="min-h-screen bg-black text-white flex flex-col items-center justify-center p-4 md:p-6 relative overflow-hidden">
+      <ThreeBackground />
 
-      <motion.div 
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        className={`z-10 max-w-xl w-full bg-cyber-card border border-white/10 p-8 rounded-3xl shadow-2xl space-y-8 transition-all duration-300 ${cropImageSrc ? 'blur-md scale-95 opacity-40 pointer-events-none' : ''}`}
-      >
-        <div className="text-center space-y-2">
+      <div className="w-full max-w-xl z-10 overflow-y-auto max-h-[90vh] no-scrollbar py-4">
+        <motion.div 
+          variants={containerVariants}
+          initial="hidden"
+          animate="visible"
+          className={`bg-white/5 backdrop-blur-[30px] border border-white/10 p-6 md:p-8 rounded-3xl shadow-2xl space-y-6 md:space-y-8 transition-all duration-300 ${cropImageSrc ? 'blur-md scale-95 opacity-40 pointer-events-none' : ''}`}
+        >
+        <motion.div variants={itemVariants} className="text-center space-y-2">
           <div className="mb-4 flex justify-center">
             <Logo size="md" glow />
           </div>
-          <h1 className="text-3xl font-bold tracking-tight">Agent Setup</h1>
+          <h1 className="text-3xl font-bold tracking-tight">Profile Setup</h1>
           <p className="text-white/60">Complete your profile to enter CREDENTIA</p>
-        </div>
+        </motion.div>
 
-        <form onSubmit={handleSubmit} className="space-y-6">
+        <motion.form onSubmit={handleSubmit} className="space-y-6">
           {/* Profile Image Upload */}
-          <div className="flex flex-col items-center space-y-4">
+          <motion.div variants={itemVariants} className="flex flex-col items-center space-y-4">
             <div 
               onClick={() => fileInputRef.current?.click()}
               className="w-24 h-24 rounded-full bg-black/40 border-2 border-dashed border-white/20 flex items-center justify-center cursor-pointer hover:border-cyber-blue/50 transition-colors relative group overflow-hidden"
@@ -262,12 +284,12 @@ export function Onboarding({ user, onComplete }: OnboardingProps) {
               accept="image/*" 
               className="hidden" 
             />
-            <p className="text-xs text-white/40">Upload Agent Identity (Optional)</p>
-          </div>
+            <p className="text-xs text-white/40">Upload Profile Photo (Optional)</p>
+          </motion.div>
 
           {/* Username Input */}
-          <div className="space-y-2">
-            <label className="text-sm font-bold text-white/70 ml-1 uppercase tracking-wider">Agent Name</label>
+          <motion.div variants={itemVariants} className="space-y-2">
+            <label className="text-sm font-bold text-white/70 ml-1 uppercase tracking-wider">Display Name</label>
             <div className="relative">
               <User className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-white/30" />
               <input 
@@ -279,16 +301,17 @@ export function Onboarding({ user, onComplete }: OnboardingProps) {
                 className="w-full bg-black/30 border border-white/10 rounded-xl py-4 pl-12 pr-4 focus:outline-none focus:border-cyber-blue transition-colors"
               />
             </div>
-          </div>
+          </motion.div>
 
           {submitError && (
-            <div className="p-4 bg-red-500/10 border border-red-500/20 rounded-xl text-red-500 text-xs font-mono break-all">
+            <motion.div variants={itemVariants} className="p-4 bg-red-500/10 border border-red-500/20 rounded-xl text-red-500 text-xs font-mono break-all">
               <p className="font-bold mb-1 uppercase">Error Details:</p>
               {submitError}
-            </div>
+            </motion.div>
           )}
 
-          <button 
+          <motion.button 
+            variants={itemVariants}
             type="submit"
             disabled={isSubmitting}
             className="w-full bg-cyber-blue text-black font-bold py-4 rounded-2xl hover:bg-cyber-blue/90 transition-all flex items-center justify-center gap-3 shadow-[0_0_20px_rgba(0,255,255,0.3)] disabled:opacity-50"
@@ -296,7 +319,7 @@ export function Onboarding({ user, onComplete }: OnboardingProps) {
             {isSubmitting ? (
               <>
                 <Loader2 className="w-5 h-5 animate-spin" />
-                Initializing...
+                Saving...
               </>
             ) : (
               <>
@@ -304,9 +327,10 @@ export function Onboarding({ user, onComplete }: OnboardingProps) {
                 <ArrowRight className="w-5 h-5" />
               </>
             )}
-          </button>
-        </form>
+          </motion.button>
+        </motion.form>
       </motion.div>
+    </div>
 
       {/* Image Cropper Modal */}
       <AnimatePresence>

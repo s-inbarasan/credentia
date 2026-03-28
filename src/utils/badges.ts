@@ -72,15 +72,15 @@ export const BADGE_DEFINITIONS: BadgeDefinition[] = [
     getProgress: (stats) => Math.min(10, stats.quizzesPassed || 0)
   },
   {
-    id: 'Cyber Guardian',
-    name: 'Cyber Guardian',
-    description: 'Complete 5 Cyber Attack Simulations.',
+    id: 'Security Auditor',
+    name: 'Security Auditor',
+    description: 'Use security tools 20 times.',
     tier: 'Advanced',
     icon: Shield,
     colorClass: 'text-orange-400 border-orange-400/50 bg-orange-400/10 shadow-[0_0_15px_rgba(251,146,60,0.5)]',
     shapeClass: 'rounded-tl-2xl rounded-br-2xl rounded-tr-sm rounded-bl-sm',
-    maxProgress: 5,
-    getProgress: (stats) => Math.min(5, stats.simulationsCompleted || 0)
+    maxProgress: 20,
+    getProgress: (stats) => Math.min(20, stats.actionsTaken || 0)
   },
   {
     id: 'Threat Hunter',

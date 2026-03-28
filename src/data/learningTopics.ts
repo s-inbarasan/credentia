@@ -349,7 +349,7 @@ export const LEARNING_TOPICS: Topic[] = [
     "explanation": "Risk assessment involves looking at \"Probability\" (how likely) and \"Impact\" (how bad). Reusing a password is high probability/high impact.",
     "realWorldExample": "Saving your credit card on a random site to save 30 seconds during checkout.",
     "securityTips": [
-      "Use the CREDENTIA Simulation Center to practice identifying risks."
+      "Use the CREDENTIA Security Tools to analyze potential threats."
     ],
     "summary": "Always weigh the 5 minutes of convenience against the 5 months of fixing identity theft.",
     "quiz": [
@@ -3275,7 +3275,7 @@ export const LEARNING_TOPICS: Topic[] = [
     "explanation": "Follow cybersecurity news (like BleepingComputer or The Hacker News). Participate in regular training. Keep a skeptical mindset.",
     "realWorldExample": "A new vulnerability is discovered in a popular app. Because you read a security blog, you know to update the app immediately before hackers can exploit it.",
     "securityTips": [
-      "Use the CREDENTIA app regularly to test your skills against the latest threat simulations."
+      "Use the CREDENTIA app regularly to test your skills against the latest security tools and learning modules."
     ],
     "summary": "The best firewall is an educated human.",
     "quiz": [

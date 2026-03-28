@@ -139,17 +139,17 @@ export function LearningHub({ userDoc, onCompleteTopic, onPassQuiz, onQuizStateC
           <ArrowLeft className="w-4 h-4" /> Back to Hub
         </button>
 
-        <div className="bg-cyber-card p-8 rounded-2xl border border-white/5 text-center space-y-6">
+        <div className="bg-cyber-card p-5 md:p-8 rounded-2xl border border-white/5 text-center space-y-6">
           <div className={cn(
-            "w-24 h-24 mx-auto rounded-full flex items-center justify-center border-4",
+            "w-20 h-20 md:w-24 md:h-24 mx-auto rounded-full flex items-center justify-center border-4",
             passed ? "border-green-500/50 bg-green-500/10 text-green-400" : "border-red-500/50 bg-red-500/10 text-red-400"
           )}>
-            {passed ? <CheckCircle className="w-12 h-12" /> : <AlertTriangle className="w-12 h-12" />}
+            {passed ? <CheckCircle className="w-10 h-10 md:w-12 md:h-12" /> : <AlertTriangle className="w-10 h-10 md:w-12 md:h-12" />}
           </div>
           
           <div>
-            <h2 className="text-2xl font-bold">{passed ? (activeChapterTest ? 'Chapter Test Passed!' : 'Quiz Passed!') : (activeChapterTest ? 'Chapter Test Failed' : 'Quiz Failed')}</h2>
-            <p className="text-white/60 mt-2">You scored {quizScore} out of {totalQuestions} ({Math.round(percentage)}%)</p>
+            <h2 className="text-xl md:text-2xl font-bold">{passed ? (activeChapterTest ? 'Chapter Test Passed!' : 'Quiz Passed!') : (activeChapterTest ? 'Chapter Test Failed' : 'Quiz Failed')}</h2>
+            <p className="text-white/60 mt-2 text-sm">You scored {quizScore} out of {totalQuestions} ({Math.round(percentage)}%)</p>
           </div>
 
           {passed ? (
@@ -200,8 +200,8 @@ export function LearningHub({ userDoc, onCompleteTopic, onPassQuiz, onQuizStateC
           </span>
         </div>
 
-        <div className="bg-cyber-card p-6 rounded-2xl border border-white/5 space-y-6">
-          <h2 className="text-xl font-bold leading-relaxed">{question.question}</h2>
+        <div className="bg-cyber-card p-5 md:p-6 rounded-2xl border border-white/5 space-y-6">
+          <h2 className="text-lg md:text-xl font-bold leading-relaxed">{question.question}</h2>
           
           <div className="space-y-3">
             {question.options.map((option, idx) => {
@@ -216,7 +216,7 @@ export function LearningHub({ userDoc, onCompleteTopic, onPassQuiz, onQuizStateC
                   onClick={() => handleAnswerSubmit(idx)}
                   disabled={selectedAnswer !== null}
                   className={cn(
-                    "w-full text-left p-4 rounded-xl border transition-all flex items-center justify-between",
+                    "w-full text-left p-3 md:p-4 rounded-xl border transition-all flex items-center justify-between text-sm md:text-base",
                     selectedAnswer === null ? "border-white/10 hover:border-cyber-blue/50 hover:bg-cyber-blue/5" :
                     showCorrect ? "border-green-500 bg-green-500/10 text-green-400" :
                     showWrong ? "border-red-500 bg-red-500/10 text-red-400" :
@@ -224,8 +224,8 @@ export function LearningHub({ userDoc, onCompleteTopic, onPassQuiz, onQuizStateC
                   )}
                 >
                   <span>{option}</span>
-                  {showCorrect && <CheckCircle className="w-5 h-5 text-green-400" />}
-                  {showWrong && <AlertTriangle className="w-5 h-5 text-red-400" />}
+                  {showCorrect && <CheckCircle className="w-5 h-5 text-green-400 shrink-0 ml-2" />}
+                  {showWrong && <AlertTriangle className="w-5 h-5 text-red-400 shrink-0 ml-2" />}
                 </button>
               );
             })}
@@ -275,58 +275,58 @@ export function LearningHub({ userDoc, onCompleteTopic, onPassQuiz, onQuizStateC
           <ArrowLeft className="w-4 h-4" /> Back to Hub
         </button>
 
-        <div className="bg-cyber-card p-6 rounded-2xl border border-white/5 space-y-6">
-          <div className="flex items-start gap-4">
-            <div className={cn("p-4 rounded-xl", getLevelColor(selectedTopic.level))}>
-              <Icon className="w-8 h-8" />
+        <div className="bg-cyber-card p-5 md:p-6 rounded-2xl border border-white/5 space-y-6">
+          <div className="flex items-start gap-3 md:gap-4">
+            <div className={cn("p-3 md:p-4 rounded-xl", getLevelColor(selectedTopic.level))}>
+              <Icon className="w-6 h-6 md:w-8 md:h-8" />
             </div>
             <div className="flex-1">
               <div className="flex items-center gap-2 mb-1">
-                <span className={cn("text-[10px] font-bold uppercase px-2 py-0.5 rounded-full border", getLevelColor(selectedTopic.level))}>
+                <span className={cn("text-[8px] md:text-[10px] font-bold uppercase px-2 py-0.5 rounded-full border", getLevelColor(selectedTopic.level))}>
                   {selectedTopic.level}
                 </span>
                 {isCompleted && (
-                  <span className="text-[10px] font-bold uppercase px-2 py-0.5 rounded-full border border-green-500/50 bg-green-500/10 text-green-400 flex items-center gap-1">
+                  <span className="text-[8px] md:text-[10px] font-bold uppercase px-2 py-0.5 rounded-full border border-green-500/50 bg-green-500/10 text-green-400 flex items-center gap-1">
                     <CheckCircle className="w-3 h-3" /> Completed
                   </span>
                 )}
               </div>
-              <h1 className="text-2xl font-bold">{selectedTopic.title}</h1>
+              <h1 className="text-xl md:text-2xl font-bold">{selectedTopic.title}</h1>
             </div>
           </div>
 
-          <div className="space-y-6">
+          <div className="space-y-5 md:space-y-6">
             <section>
-              <h3 className="text-sm font-bold text-cyber-blue uppercase tracking-wider mb-2">Simple Explanation</h3>
-              <p className="text-white/70 leading-relaxed italic text-lg">"{selectedTopic.simpleExplanation}"</p>
+              <h3 className="text-xs md:text-sm font-bold text-cyber-blue uppercase tracking-wider mb-2">Simple Explanation</h3>
+              <p className="text-white/70 leading-relaxed italic text-base md:text-lg">"{selectedTopic.simpleExplanation}"</p>
             </section>
 
-            <section className="bg-red-500/10 p-4 rounded-xl border border-red-500/20">
-              <h3 className="text-sm font-bold text-red-400 uppercase tracking-wider mb-2 flex items-center gap-2">
+            <section className="bg-red-500/10 p-3 md:p-4 rounded-xl border border-red-500/20">
+              <h3 className="text-xs md:text-sm font-bold text-red-400 uppercase tracking-wider mb-2 flex items-center gap-2">
                 <AlertTriangle className="w-4 h-4" /> Why It Matters
               </h3>
-              <p className="text-white/90 leading-relaxed font-medium">{selectedTopic.whyItMatters}</p>
+              <p className="text-white/90 leading-relaxed font-medium text-sm md:text-base">{selectedTopic.whyItMatters}</p>
             </section>
 
             <section>
-              <h3 className="text-sm font-bold text-cyber-blue uppercase tracking-wider mb-2">Detailed Overview</h3>
-              <p className="text-white/70 leading-relaxed">{selectedTopic.explanation}</p>
+              <h3 className="text-xs md:text-sm font-bold text-cyber-blue uppercase tracking-wider mb-2">Detailed Overview</h3>
+              <p className="text-white/70 leading-relaxed text-sm md:text-base">{selectedTopic.explanation}</p>
             </section>
 
-            <section className="bg-white/5 p-4 rounded-xl border border-white/10">
-              <h3 className="text-sm font-bold text-orange-400 uppercase tracking-wider mb-2 flex items-center gap-2">
+            <section className="bg-white/5 p-3 md:p-4 rounded-xl border border-white/10">
+              <h3 className="text-xs md:text-sm font-bold text-orange-400 uppercase tracking-wider mb-2 flex items-center gap-2">
                 <Globe className="w-4 h-4" /> Real-World Example
               </h3>
-              <p className="text-white/70 leading-relaxed italic">"{selectedTopic.realWorldExample}"</p>
+              <p className="text-white/70 leading-relaxed italic text-sm md:text-base">"{selectedTopic.realWorldExample}"</p>
             </section>
 
             <section>
-              <h3 className="text-sm font-bold text-green-400 uppercase tracking-wider mb-3 flex items-center gap-2">
+              <h3 className="text-xs md:text-sm font-bold text-green-400 uppercase tracking-wider mb-3 flex items-center gap-2">
                 <Shield className="w-4 h-4" /> Security Tips
               </h3>
               <ul className="space-y-2">
                 {selectedTopic.securityTips.map((tip, idx) => (
-                  <li key={idx} className="flex items-start gap-2 text-white/70">
+                  <li key={idx} className="flex items-start gap-2 text-white/70 text-sm md:text-base">
                     <CheckCircle className="w-4 h-4 text-green-400 shrink-0 mt-0.5" />
                     <span>{tip}</span>
                   </li>
@@ -334,11 +334,11 @@ export function LearningHub({ userDoc, onCompleteTopic, onPassQuiz, onQuizStateC
               </ul>
             </section>
 
-            <section className="bg-cyber-blue/5 p-4 rounded-xl border border-cyber-blue/20">
-              <h3 className="text-sm font-bold text-cyber-blue uppercase tracking-wider mb-2 flex items-center gap-2">
+            <section className="bg-cyber-blue/5 p-3 md:p-4 rounded-xl border border-cyber-blue/20">
+              <h3 className="text-xs md:text-sm font-bold text-cyber-blue uppercase tracking-wider mb-2 flex items-center gap-2">
                 <BookOpen className="w-4 h-4" /> Key Takeaway
               </h3>
-              <p className="text-white/90 leading-relaxed font-medium">{selectedTopic.summary}</p>
+              <p className="text-white/90 leading-relaxed font-medium text-sm md:text-base">{selectedTopic.summary}</p>
             </section>
           </div>
 

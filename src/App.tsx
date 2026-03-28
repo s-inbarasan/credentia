@@ -36,7 +36,11 @@ import {
   BookOpen,
   Home,
   Wrench,
-  UserCheck
+  UserCheck,
+  ShieldCheck,
+  Database,
+  FileSearch,
+  FileWarning
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { clsx, type ClassValue } from 'clsx';
@@ -46,11 +50,11 @@ import { Message, RiskState, PasswordAnalysis, PhishingAnalysis, UserDocument, C
 import { analyzePassword, analyzePhishing } from './utils/analyzer';
 import { getCyberResponse } from './services/geminiService';
 import { LearningHub } from './components/LearningHub';
-import { SimulationCenter } from './components/SimulationCenter';
 import { SettingsModal } from './components/SettingsModal';
 import { LandingPage } from './components/LandingPage';
 import { Login } from './components/Login';
 import { ChatPanel } from './components/ChatPanel';
+import { ThreeBackground } from './components/ThreeBackground';
 import { Onboarding } from './components/Onboarding';
 import { BADGE_DEFINITIONS, checkNewBadges } from './utils/badges';
 import { supabase } from './supabase';
@@ -117,9 +121,11 @@ export default function App() {
   const [loading, setLoading] = useState(true);
   const [showBadgeNotification, setShowBadgeNotification] = useState<string | null>(null);
   const [showSettingsSaved, setShowSettingsSaved] = useState(false);
-  const [showSimulationCenter, setShowSimulationCenter] = useState(false);
   const [showSettingsModal, setShowSettingsModal] = useState(false);
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
+  const [showHealthCheck, setShowHealthCheck] = useState(false);
+  const [healthCheckResult, setHealthCheckResult] = useState<any>(null);
+  const [isRunningHealthCheck, setIsRunningHealthCheck] = useState(false);
   const [isSavingProfile, setIsSavingProfile] = useState(false);
   const [isResetting, setIsResetting] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
@@ -135,7 +141,7 @@ export default function App() {
       hasShownWelcome.current = true;
       const isNew = new Date().getTime() - new Date(userDoc.createdAt).getTime() < 10000;
       setWelcomeMessage({
-        text: isNew ? `Profile created successfully, Agent ${userDoc.name}` : `Welcome back, ${userDoc.name}`,
+        text: isNew ? `Profile created successfully, ${userDoc.name}` : `Welcome back, ${userDoc.name}`,
         type: isNew ? 'signup' : 'login'
       });
       
@@ -168,7 +174,7 @@ export default function App() {
     }
   };
 
-  const addRecentActivity = async (title: string, type: 'topic' | 'quiz' | 'simulation' | 'tool') => {
+  const addRecentActivity = async (title: string, type: 'topic' | 'quiz' | 'tool' | 'health') => {
     if (user) {
       const newActivity = {
         title,
@@ -255,45 +261,6 @@ export default function App() {
       }
     } catch (error) {
       console.error('Error passing quiz:', error);
-    }
-  };
-
-  const handleCompleteSimulation = async (scenarioId: string, xpReward: number, score: number) => {
-    if (!user || !userDoc) return;
-    
-    const currentScores = userDoc.simulationScores || {};
-    if (currentScores[scenarioId] === 100) return; // Already passed perfectly
-    
-    const newScores = { ...currentScores, [scenarioId]: Math.max(score, currentScores[scenarioId] || 0) };
-    const newPoints = userDoc.xp + xpReward;
-    
-    const newStats = {
-      ...userDoc.stats,
-      simulationsCompleted: (userDoc.stats?.simulationsCompleted || 0) + 1,
-      actionsTaken: (userDoc.stats?.actionsTaken || 0) + 1
-    };
-    
-    const newBadges = checkNewBadges(newStats, userDoc.badges || []);
-    
-    try {
-      addRecentActivity(`Completed Simulation: ${scenarioId.replace(/_/g, ' ')}`, 'simulation');
-      
-      await supabase
-        .from('profiles')
-        .update({
-          simulation_scores: newScores,
-          xp: newPoints,
-          stats: newStats,
-          badges: [...(userDoc.badges || []), ...newBadges]
-        })
-        .eq('id', user.uid);
-      
-      if (newBadges.length > 0) {
-        setShowBadgeNotification(newBadges[0]);
-        setTimeout(() => setShowBadgeNotification(null), 3000);
-      }
-    } catch (error) {
-      console.error('Error completing simulation:', error);
     }
   };
 
@@ -395,7 +362,6 @@ export default function App() {
               badges: existingProfile.badges,
               completedTopics: existingProfile.completed_topics,
               quizScores: existingProfile.quiz_scores,
-              simulationScores: existingProfile.simulation_scores,
               stats: existingProfile.stats,
               riskScore: existingProfile.risk_score,
               preferences: existingProfile.preferences
@@ -430,7 +396,6 @@ export default function App() {
                 badges: data.badges,
                 completedTopics: data.completed_topics,
                 quizScores: data.quiz_scores,
-                simulationScores: data.simulation_scores,
                 stats: data.stats,
                 riskScore: data.risk_score,
                 preferences: data.preferences
@@ -577,7 +542,6 @@ export default function App() {
       strongPasswords: 0,
       phishingDetected: 0,
       toolsUsed: [],
-      simulationsCompleted: 0,
       topicsCompleted: 0,
       quizzesPassed: 0
     };
@@ -675,7 +639,6 @@ export default function App() {
             strongPasswords: 0,
             phishingDetected: 0,
             toolsUsed: [],
-            simulationsCompleted: 0,
             topicsCompleted: 0,
             quizzesPassed: 0
           }
@@ -707,7 +670,6 @@ export default function App() {
         userBadges: userDoc.badges || [],
         completedTopics: userDoc.completedTopics || [],
         quizScores: userDoc.quizScores || {},
-        simulationScores: userDoc.simulationScores || {},
         chatSessions: chatSessions,
         riskScore: userDoc.riskScore,
         recentActivity: recentActivity,
@@ -776,7 +738,22 @@ export default function App() {
     }
   };
 
-  const onAnalyzePassword = () => {
+  const [isAnalyzingPassword, setIsAnalyzingPassword] = useState(false);
+  const [isAnalyzingPhishing, setIsAnalyzingPhishing] = useState(false);
+  const onAnalyzePassword = async () => {
+    if (!passwordInput.trim()) {
+      toast.error("Input Required", {
+        description: "Please enter a password to analyze."
+      });
+      return;
+    }
+
+    setIsAnalyzingPassword(true);
+    setPassAnalysis(null);
+
+    // Simulate "honest" scanning delay
+    await new Promise(resolve => setTimeout(resolve, 1500));
+
     const result = analyzePassword(passwordInput);
     setPassAnalysis(result);
     updateRiskScore(Math.min(100, Math.max(0, riskScore + (result.score < 50 ? 10 : -5))));
@@ -787,9 +764,111 @@ export default function App() {
       trackAction(5, 'actionsTaken', 'password');
     }
     addRecentActivity('Password Analyzed', 'tool');
+    setIsAnalyzingPassword(false);
   };
 
-  const onAnalyzePhishing = () => {
+  const runHealthCheck = async () => {
+    setIsRunningHealthCheck(true);
+    setShowHealthCheck(true);
+    setHealthCheckResult(null);
+
+    // Simulate deep system scan
+    await new Promise(resolve => setTimeout(resolve, 3000));
+
+    let score = 100;
+    const recommendations: string[] = [];
+
+    // 1. Check Risk Score
+    if (riskScore > 50) {
+      score -= 30;
+      recommendations.push("Your risk score is high. Review recent activities and tool findings.");
+    } else if (riskScore > 20) {
+      score -= 15;
+      recommendations.push("Moderate risk detected. Complete more security topics to improve.");
+    }
+
+    // 2. Check Completed Topics
+    const totalTopics = 12; // Estimated total
+    const completedTopicsCount = userDoc?.completedTopics?.length || 0;
+    const completionRate = (completedTopicsCount / totalTopics) * 100;
+    if (completionRate < 30) {
+      score -= 20;
+      recommendations.push("Complete more learning modules to strengthen your security knowledge.");
+    } else if (completionRate < 70) {
+      score -= 10;
+      recommendations.push("You're halfway through! Finish the remaining topics for full protection.");
+    }
+
+    // 3. Check Badges
+    const badgesCount = userDoc?.badges?.length || 0;
+    if (badgesCount < 3) {
+      score -= 10;
+      recommendations.push("Earn more badges by using security tools and completing quizzes.");
+    }
+
+    // 4. Check Password Strength (Simulated based on stats)
+    if ((userDoc?.stats?.strongPasswords || 0) < 3) {
+      score -= 15;
+      recommendations.push("Use the Password Analyzer to ensure all your accounts have strong passwords.");
+    }
+
+    // 5. Check Tool Usage
+    if ((userDoc?.stats?.toolsUsed?.length || 0) < 3) {
+      score -= 10;
+      recommendations.push("Explore all security tools (Phishing, Breach, File) for a complete audit.");
+    }
+
+    // 6. Check if email is verified (Supabase)
+    try {
+      const { data: { user: authUser } } = await supabase.auth.getUser();
+      if (authUser && !authUser.email_confirmed_at) {
+        score -= 20;
+        recommendations.push("Verify your email address to secure your account recovery options.");
+      }
+    } catch (error) {
+      console.error("Error checking email verification:", error);
+      // Don't penalize score if we can't check verification
+    }
+
+    // Ensure score doesn't go below 0
+    score = Math.max(0, score);
+
+    let status: 'Secure' | 'Warning' | 'Critical' = 'Secure';
+    let message = "Your security posture is excellent. Keep up the good work!";
+
+    if (score < 50) {
+      status = 'Critical';
+      message = "Multiple security vulnerabilities detected. Immediate action required.";
+    } else if (score < 85) {
+      status = 'Warning';
+      message = "Some security gaps identified. Follow the recommendations below.";
+    }
+
+    setHealthCheckResult({
+      status,
+      score,
+      message,
+      recommendations,
+      timestamp: new Date().toISOString()
+    });
+
+    setIsRunningHealthCheck(false);
+    addRecentActivity('Security Health Check', 'health');
+  };
+  const onAnalyzePhishing = async () => {
+    if (!phishingInput.trim()) {
+      toast.error("Content Required", {
+        description: "Please paste a message or link to scan for phishing."
+      });
+      return;
+    }
+
+    setIsAnalyzingPhishing(true);
+    setPhishAnalysis(null);
+
+    // Simulate "honest" scanning delay
+    await new Promise(resolve => setTimeout(resolve, 2000));
+
     const result = analyzePhishing(phishingInput);
     setPhishAnalysis(result);
     updateRiskScore(Math.min(100, Math.max(0, riskScore + (result.suspicious ? 15 : -2))));
@@ -800,6 +879,7 @@ export default function App() {
       trackAction(5, 'actionsTaken', 'phishing');
     }
     addRecentActivity('Phishing Analyzed', 'tool');
+    setIsAnalyzingPhishing(false);
   };
 
   const handleCopy = (id: string, text: string) => {
@@ -815,66 +895,115 @@ export default function App() {
     "Secure my Wi-Fi"
   ];
 
-  console.log('App: Rendering', { loading, hasUser: !!user, needsOnboarding, hasUserDoc: !!userDoc });
+  const [isEnteringDashboard, setIsEnteringDashboard] = useState(false);
+
+  useEffect(() => {
+    if (user && userDoc && !needsOnboarding && !isEnteringDashboard && !isGuest) {
+      // Trigger Hyperspace Jump
+      setIsEnteringDashboard(true);
+      setTimeout(() => {
+        setIsEnteringDashboard(false);
+      }, 800);
+    }
+  }, [user, userDoc, needsOnboarding]);
+
+  console.log('App: Rendering', { loading, hasUser: !!user, needsOnboarding, hasUserDoc: !!userDoc, isEnteringDashboard });
 
   if (loading) {
-    console.log('App: Rendering loading state');
     return (
-      <div className="min-h-screen bg-cyber-bg flex items-center justify-center">
-        <div className="flex flex-col items-center gap-6">
-          <Logo size="xl" glow />
-          <div className="flex items-center gap-2">
-            <RefreshCw className="w-4 h-4 text-cyber-blue animate-spin" />
-            <span className="text-cyber-blue font-mono text-sm tracking-widest uppercase">Initializing Secure Session...</span>
+      <div className="min-h-screen bg-black flex items-center justify-center relative overflow-hidden">
+        <ThreeBackground isWarping={true} />
+        <div className="z-10 flex flex-col items-center gap-8">
+          <Logo size="lg" glow />
+          <div className="flex flex-col items-center gap-2">
+            <div className="w-48 h-1 bg-white/10 rounded-full overflow-hidden">
+              <motion.div 
+                initial={{ x: '-100%' }}
+                animate={{ x: '100%' }}
+                transition={{ duration: 1.5, repeat: Infinity, ease: "linear" }}
+                className="w-full h-full bg-cyber-blue shadow-[0_0_10px_rgba(0,242,255,0.8)]"
+              />
+            </div>
+            <span className="text-cyber-blue font-black text-[10px] tracking-[0.5em] uppercase animate-pulse">Establishing Secure Link...</span>
           </div>
         </div>
       </div>
     );
   }
 
-  if (user && needsOnboarding) {
-    console.log('App: Rendering Onboarding component');
-    return (
-      <Onboarding 
-        user={user} 
-        onComplete={(doc) => {
-          console.log('App: onComplete called with doc:', doc);
-          setUserDoc(doc);
-          setNeedsOnboarding(false);
-          console.log('App: needsOnboarding set to false');
-        }} 
-      />
-    );
-  }
-
-  if (showLogin) {
-    return (
-      <Login 
-        onBack={() => setShowLogin(false)} 
-        onSuccess={() => {
-          setShowLogin(false);
-          setIsGuest(false);
-        }} 
-      />
-    );
-  }
-
-  if (!user && !isGuest) {
-    return <LandingPage onLogin={() => setShowLogin(true)} onGuest={() => setIsGuest(true)} />;
-  }
-
   return (
-    <div className="flex flex-col h-screen w-full md:max-w-screen-2xl mx-auto bg-cyber-bg text-white overflow-hidden md:border-x border-white/10 shadow-2xl relative">
-      
-      {/* Badge Notification Overlay */}
-      <AnimatePresence>
-        {showBadgeNotification && (
-          <motion.div 
-            initial={{ opacity: 0, y: -50 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -50 }}
-            className="absolute top-24 left-4 right-4 z-50 bg-cyber-card border border-white/20 rounded-2xl p-4 shadow-2xl flex items-center gap-4"
-          >
+    <AnimatePresence mode="wait">
+      {isEnteringDashboard ? (
+        <motion.div 
+          key="entering"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          transition={{ duration: 0.5 }}
+          className="min-h-screen bg-black flex items-center justify-center relative overflow-hidden z-50"
+        >
+          <ThreeBackground isWarping={false} />
+          <Logo size="lg" glow />
+        </motion.div>
+      ) : user && needsOnboarding ? (
+        <motion.div 
+          key="onboarding"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          transition={{ duration: 0.5 }}
+        >
+          <Onboarding 
+            user={user} 
+            onComplete={(doc) => {
+              setUserDoc(doc);
+              setNeedsOnboarding(false);
+            }} 
+          />
+        </motion.div>
+      ) : showLogin ? (
+        <motion.div 
+          key="login"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          transition={{ duration: 0.5 }}
+        >
+          <Login 
+            onBack={() => setShowLogin(false)} 
+            onSuccess={() => {
+              setShowLogin(false);
+              setIsGuest(false);
+            }} 
+          />
+        </motion.div>
+      ) : !user && !isGuest ? (
+        <motion.div 
+          key="landing"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          transition={{ duration: 0.5 }}
+        >
+          <LandingPage onLogin={() => setShowLogin(true)} onGuest={() => setIsGuest(true)} />
+        </motion.div>
+      ) : (
+        <motion.div 
+          key="dashboard"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ duration: 0.5 }}
+          className="flex flex-col h-screen w-full md:max-w-screen-2xl mx-auto bg-cyber-bg text-white overflow-hidden md:border-x border-white/10 shadow-2xl relative"
+        >
+          {/* Badge Notification Overlay */}
+          <AnimatePresence>
+            {showBadgeNotification && (
+              <motion.div 
+                initial={{ opacity: 0, y: -50 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -50 }}
+                className="absolute top-24 left-4 right-4 z-50 bg-cyber-card border border-white/20 rounded-2xl p-4 shadow-2xl flex items-center gap-4"
+              >
             {(() => {
               const badgeDef = BADGE_DEFINITIONS.find(b => b.id === showBadgeNotification);
               const Icon = badgeDef?.icon || Award;
@@ -923,7 +1052,7 @@ export default function App() {
               initial={{ scale: 0.9, y: 20 }}
               animate={{ scale: 1, y: 0 }}
               exit={{ scale: 0.9, y: 20 }}
-              className={`bg-cyber-card border border-white/10 rounded-3xl p-6 w-full max-w-sm transition-all duration-300 ${cropImageSrc ? 'blur-md scale-95 opacity-40 pointer-events-none' : ''}`}
+              className={`bg-cyber-card border border-white/10 rounded-3xl p-5 md:p-6 w-full max-w-sm transition-all duration-300 ${cropImageSrc ? 'blur-md scale-95 opacity-40 pointer-events-none' : ''}`}
             >
               <div className="flex justify-between items-center mb-6">
                 <h3 className="text-lg font-bold">Edit Profile</h3>
@@ -987,27 +1116,28 @@ export default function App() {
       </AnimatePresence>
 
       {/* Header */}
-      <header className="p-4 pt-10 border-b border-white/10 bg-cyber-bg/80 backdrop-blur-md z-10">
+      <header className="p-4 pt-8 md:pt-10 border-b border-white/10 bg-cyber-bg/80 backdrop-blur-md z-10">
         <div className="max-w-5xl mx-auto flex items-center justify-between w-full">
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 md:gap-3">
             <div 
               onClick={() => setIsEditingProfile(true)}
-              className="w-10 h-10 rounded-full overflow-hidden border border-cyber-blue/30 cyber-glow bg-black flex items-center justify-center cursor-pointer hover:scale-105 transition-transform"
+              className="w-8 h-8 md:w-10 md:h-10 rounded-full overflow-hidden border border-cyber-blue/30 cyber-glow bg-black flex items-center justify-center cursor-pointer hover:scale-105 transition-transform"
             >
               {userDoc?.profileImage ? (
                 <img src={userDoc.profileImage} alt="Avatar" className="w-full h-full object-cover" />
               ) : (
-                <User className="w-5 h-5 text-cyber-blue" />
+                <User className="w-4 h-4 md:w-5 md:h-5 text-cyber-blue" />
               )}
             </div>
-            <div className="flex items-center gap-2">
-              <Logo size="sm" glow />
+            <div className="flex items-center gap-1.5 md:gap-2">
+              <Logo size="xs" glow className="md:hidden" />
+              <Logo size="sm" glow className="hidden md:block" />
               <div>
-                <h1 className="text-lg font-bold tracking-tight leading-none">
+                <h1 className="text-sm md:text-lg font-bold tracking-tight leading-none truncate max-w-[120px] md:max-w-none">
                   {userDoc?.name || 'CREDENTIA'}
                 </h1>
-                <p className="text-[10px] text-cyber-blue font-semibold uppercase tracking-[0.2em] mt-1">
-                  Agent Level {userDoc?.level || 1}
+                <p className="text-[8px] md:text-[10px] text-cyber-blue font-semibold uppercase tracking-[0.1em] md:tracking-[0.2em] mt-0.5 md:mt-1">
+                  Level {userDoc?.level || 1}
                 </p>
               </div>
             </div>
@@ -1044,13 +1174,7 @@ export default function App() {
 
       {/* Main Content */}
       <main className={cn("flex-1 overflow-y-auto scrollbar-hide p-4 space-y-6 max-w-5xl mx-auto w-full", "pb-24")}>
-        {showSimulationCenter ? (
-          <SimulationCenter 
-            userDoc={userDoc}
-            onCompleteSimulation={handleCompleteSimulation}
-            onClose={() => setShowSimulationCenter(false)}
-          />
-        ) : activeTab === 'home' ? (
+        {activeTab === 'home' ? (
           <motion.div 
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
@@ -1082,7 +1206,7 @@ export default function App() {
               <div className="flex flex-col">
                 <div className="flex items-center gap-2">
                   <h2 className="text-xl md:text-2xl font-bold">
-                    {user ? "Agent Dashboard" : "Welcome, Guest"}
+                    {user ? "User Dashboard" : "Welcome, Guest"}
                   </h2>
                   {user ? (
                     <div className="flex items-center gap-1 bg-cyber-green/10 border border-cyber-green/30 px-2 py-0.5 rounded-full">
@@ -1119,17 +1243,17 @@ export default function App() {
             {/* Grid for Score and Progress */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               {/* Security Score */}
-              <section className="bg-cyber-card p-6 rounded-3xl border border-white/5 relative overflow-hidden flex items-center justify-between h-full">
+              <section className="bg-cyber-card p-5 md:p-6 rounded-3xl border border-white/5 relative overflow-hidden flex items-center justify-between h-full">
                 <div className="absolute top-0 right-0 p-4 opacity-10">
                   <Logo size="xl" className="opacity-20 grayscale" />
                 </div>
                 <div className="z-10">
                   <h3 className="text-sm font-bold uppercase tracking-widest text-white/30 mb-2">Security Score</h3>
-                  <p className="text-[10px] text-white/50 max-w-[200px] leading-relaxed">
+                  <p className="text-[10px] text-white/50 max-w-[150px] md:max-w-[200px] leading-relaxed">
                     Based on your learning progress, quiz scores, and tool usage.
                   </p>
                 </div>
-                <div className="z-10">
+                <div className="z-10 scale-90 md:scale-100">
                   <RiskMeter score={100 - riskScore} />
                 </div>
               </section>
@@ -1158,24 +1282,44 @@ export default function App() {
             {/* Quick Access Cards */}
             <section className="space-y-4">
               <h3 className="text-sm font-bold uppercase tracking-widest text-white/30 px-2">Quick Access</h3>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <button 
                   onClick={() => setActiveTab('learningHub')}
-                  className="bg-cyber-card p-5 rounded-3xl border border-white/5 hover:border-cyber-blue/50 transition-all flex flex-col items-center justify-center gap-3 group"
+                  className="bg-cyber-card p-4 md:p-5 rounded-3xl border border-white/5 hover:border-cyber-blue/50 transition-all flex flex-row sm:flex-col items-center sm:justify-center gap-4 sm:gap-3 group"
                 >
-                  <div className="w-12 h-12 rounded-full bg-cyber-blue/10 flex items-center justify-center group-hover:scale-110 transition-transform">
-                    <BookOpen className="w-6 h-6 text-cyber-blue" />
+                  <div className="w-10 h-10 md:w-12 md:h-12 rounded-full bg-cyber-blue/10 flex items-center justify-center group-hover:scale-110 transition-transform shrink-0">
+                    <BookOpen className="w-5 h-5 md:w-6 md:h-6 text-cyber-blue" />
                   </div>
                   <span className="text-sm font-bold">Learning Hub</span>
                 </button>
                 <button 
                   onClick={() => setActiveTab('tools')}
-                  className="bg-cyber-card p-5 rounded-3xl border border-white/5 hover:border-cyber-purple/50 transition-all flex flex-col items-center justify-center gap-3 group"
+                  className="bg-cyber-card p-4 md:p-5 rounded-3xl border border-white/5 hover:border-cyber-purple/50 transition-all flex flex-row sm:flex-col items-center sm:justify-center gap-4 sm:gap-3 group"
                 >
-                  <div className="w-12 h-12 rounded-full bg-cyber-purple/10 flex items-center justify-center group-hover:scale-110 transition-transform">
-                    <Wrench className="w-6 h-6 text-cyber-purple" />
+                  <div className="w-10 h-10 md:w-12 md:h-12 rounded-full bg-cyber-purple/10 flex items-center justify-center group-hover:scale-110 transition-transform shrink-0">
+                    <Wrench className="w-5 h-5 md:w-6 md:h-6 text-cyber-purple" />
                   </div>
                   <span className="text-sm font-bold">Security Tools</span>
+                </button>
+              </div>
+            </section>
+
+            {/* Security Health Check Banner */}
+            <section className="bg-gradient-to-r from-cyber-blue/20 to-cyber-card p-6 rounded-3xl border border-cyber-blue/30 relative overflow-hidden group">
+              <div className="absolute top-0 right-0 p-4 opacity-20 group-hover:opacity-40 transition-opacity group-hover:scale-110 duration-500">
+                <ShieldCheck className="w-24 h-24 text-cyber-blue" />
+              </div>
+              <div className="relative z-10">
+                <h2 className="text-xl font-bold mb-2 flex items-center gap-2">
+                  <ShieldCheck className="w-6 h-6 text-cyber-blue" />
+                  Security Health Check
+                </h2>
+                <p className="text-sm text-white/70 mb-4 max-w-[80%]">Perform a comprehensive check of your digital security posture and get personalized recommendations.</p>
+                <button 
+                  onClick={runHealthCheck}
+                  className="inline-flex items-center gap-2 px-4 py-2 bg-cyber-blue text-black font-bold rounded-xl text-sm hover:bg-cyber-blue/80 transition-colors cursor-pointer"
+                >
+                  <PlayCircle className="w-4 h-4" /> Run Health Check
                 </button>
               </div>
             </section>
@@ -1191,13 +1335,13 @@ export default function App() {
                         "w-8 h-8 rounded-full flex items-center justify-center",
                         activity.type === 'topic' ? "bg-cyber-yellow/10 text-cyber-yellow" :
                         activity.type === 'quiz' ? "bg-cyber-green/10 text-cyber-green" :
-                        activity.type === 'simulation' ? "bg-cyber-purple/10 text-cyber-purple" :
-                        "bg-cyber-blue/10 text-cyber-blue"
+                        activity.type === 'health' ? "bg-cyber-blue/10 text-cyber-blue" :
+                        "bg-cyber-purple/10 text-cyber-purple"
                       )}>
                         {activity.type === 'topic' ? <BookOpen className="w-4 h-4" /> :
                          activity.type === 'quiz' ? <Award className="w-4 h-4" /> :
-                         activity.type === 'simulation' ? <Shield className="w-4 h-4" /> :
-                         <Bot className="w-4 h-4" />}
+                         activity.type === 'health' ? <ShieldCheck className="w-4 h-4" /> :
+                         <Wrench className="w-4 h-4" />}
                       </div>
                       <div>
                         <p className="text-sm font-medium">{activity.title}</p>
@@ -1226,25 +1370,9 @@ export default function App() {
               <p className="text-xs text-white/40">Analyze threats, passwords, and phishing attempts.</p>
             </div>
 
-            {/* Simulation Center Banner */}
-            <section className="bg-gradient-to-r from-orange-500/20 to-cyber-card p-6 rounded-3xl border border-orange-500/30 relative overflow-hidden group cursor-pointer" onClick={() => setShowSimulationCenter(true)}>
-              <div className="absolute top-0 right-0 p-4 opacity-20 group-hover:opacity-40 transition-opacity group-hover:scale-110 duration-500">
-                <ShieldAlert className="w-24 h-24 text-orange-400" />
-              </div>
-              <div className="relative z-10">
-                <h2 className="text-xl font-bold mb-2 flex items-center gap-2">
-                  <ShieldAlert className="w-6 h-6 text-orange-400" />
-                  Cyber Attack Simulator
-                </h2>
-                <p className="text-sm text-white/70 mb-4 max-w-[80%]">Test your skills against real-world threats like phishing and social engineering.</p>
-                <div className="inline-flex items-center gap-2 px-4 py-2 bg-orange-500 text-black font-bold rounded-xl text-sm hover:bg-orange-400 transition-colors">
-                  <PlayCircle className="w-4 h-4" /> Start Simulation
-                </div>
-              </div>
-            </section>
-
             {/* Analyzers */}
-            <section className="space-y-4">
+            <section className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {/* Password Analyzer */}
               <div className="bg-cyber-card p-5 rounded-2xl border border-white/5 relative overflow-hidden">
                 {/* Points indicator */}
                 <div className="absolute top-4 right-4 text-[10px] text-cyber-blue font-bold flex items-center gap-1 bg-cyber-blue/10 px-2 py-1 rounded-full">
@@ -1264,41 +1392,69 @@ export default function App() {
                   />
                   <button 
                     onClick={onAnalyzePassword}
-                    className="bg-cyber-blue text-black font-bold px-4 py-2 rounded-xl text-sm hover:bg-cyber-blue/80 transition-colors"
+                    disabled={isAnalyzingPassword}
+                    className="bg-cyber-blue text-black font-bold px-4 py-2 rounded-xl text-sm hover:bg-cyber-blue/80 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
                   >
-                    Test
+                    {isAnalyzingPassword ? (
+                      <>
+                        <RefreshCw className="w-4 h-4 animate-spin" />
+                        Scanning...
+                      </>
+                    ) : 'Test'}
                   </button>
                 </div>
                 {passAnalysis && (
-                  <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-3">
-                    <div className="flex justify-between items-center">
-                      <span className="text-xs text-white/50">Strength:</span>
-                      <span className={cn(
-                        "text-xs font-bold",
-                        passAnalysis.strength === 'Strong' ? "text-cyber-green" :
-                        passAnalysis.strength === 'Medium' ? "text-cyber-yellow" : "text-cyber-red"
-                      )}>{passAnalysis.strength}</span>
+                  <motion.div 
+                    initial={{ opacity: 0, y: 10 }} 
+                    animate={{ opacity: 1, y: 0 }} 
+                    transition={{ duration: 0.4, ease: [0.23, 1, 0.32, 1] }}
+                    className="space-y-3"
+                  >
+                    <div className="flex justify-between items-center px-1">
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs text-white/50">Strength:</span>
+                        <span className={cn(
+                          "text-xs font-bold px-2 py-0.5 rounded-full",
+                          passAnalysis.strength === 'Strong' ? "text-cyber-green bg-cyber-green/10" :
+                          passAnalysis.strength === 'Medium' ? "text-cyber-yellow bg-cyber-yellow/10" : "text-cyber-red bg-cyber-red/10"
+                        )}>{passAnalysis.strength}</span>
+                      </div>
+                      <span className="text-[10px] font-mono opacity-40">SCORE: {passAnalysis.score}/100</span>
                     </div>
                     <div className="w-full bg-white/5 h-1.5 rounded-full overflow-hidden">
                       <motion.div 
                         initial={{ width: 0 }}
                         animate={{ width: `${passAnalysis.score}%` }}
+                        transition={{ duration: 0.8, ease: [0.23, 1, 0.32, 1] }}
                         className={cn(
-                          "h-full",
-                          passAnalysis.score > 80 ? "bg-cyber-green" :
-                          passAnalysis.score > 40 ? "bg-cyber-yellow" : "bg-cyber-red"
+                          "h-full shadow-[0_0_10px_rgba(0,0,0,0.5)]",
+                          passAnalysis.score > 80 ? "bg-cyber-green shadow-cyber-green/20" :
+                          passAnalysis.score > 40 ? "bg-cyber-yellow shadow-cyber-yellow/20" : "bg-cyber-red shadow-cyber-red/20"
                         )}
                       />
                     </div>
-                    <p className="text-[10px] text-white/40 italic">Estimated crack time: {passAnalysis.crackTime}</p>
+                    <div className="flex items-center gap-2 text-[10px] text-white/40 italic bg-black/20 p-2 rounded-lg border border-white/5">
+                      <Zap className="w-3 h-3 text-cyber-yellow" />
+                      Estimated crack time: <span className="text-white/70 font-bold ml-1">{passAnalysis.crackTime}</span>
+                    </div>
                     {passAnalysis.suggestions.length > 0 && (
-                      <ul className="text-[10px] space-y-1">
-                        {passAnalysis.suggestions.map((s, i) => (
-                          <li key={i} className="flex items-start gap-1 text-cyber-yellow">
-                            <ChevronRight className="w-3 h-3 mt-0.5" /> {s}
-                          </li>
-                        ))}
-                      </ul>
+                      <div className="space-y-2">
+                        <p className="text-[10px] font-bold uppercase text-white/30 ml-1">Security Suggestions</p>
+                        <ul className="text-[10px] space-y-1.5">
+                          {passAnalysis.suggestions.map((s, i) => (
+                            <motion.li 
+                              key={i} 
+                              initial={{ x: -5, opacity: 0 }}
+                              animate={{ x: 0, opacity: 1 }}
+                              transition={{ delay: i * 0.1 }}
+                              className="flex items-start gap-2 text-cyber-yellow/70"
+                            >
+                              <ChevronRight className="w-3 h-3 mt-0.5 text-cyber-yellow" /> 
+                              {s}
+                            </motion.li>
+                          ))}
+                        </ul>
+                      </div>
                     )}
                   </motion.div>
                 )}
@@ -1321,36 +1477,115 @@ export default function App() {
                 />
                 <button 
                   onClick={onAnalyzePhishing}
-                  className="w-full bg-cyber-yellow text-black font-bold py-2 rounded-xl text-sm hover:bg-cyber-yellow/80 transition-colors"
+                  disabled={isAnalyzingPhishing}
+                  className="w-full bg-cyber-yellow text-black font-bold py-2 rounded-xl text-sm hover:bg-cyber-yellow/80 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                 >
-                  Scan Content
+                  {isAnalyzingPhishing ? (
+                    <>
+                      <RefreshCw className="w-4 h-4 animate-spin" />
+                      Analyzing Deeply...
+                    </>
+                  ) : 'Scan Content'}
                 </button>
                 {phishAnalysis && (
-                  <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="mt-4 space-y-3">
-                    <div className="flex items-center gap-2">
-                      {phishAnalysis.suspicious ? (
-                        <XCircle className="w-5 h-5 text-cyber-red" />
-                      ) : (
-                        <CheckCircle2 className="w-5 h-5 text-cyber-green" />
-                      )}
-                      <span className="text-sm font-bold">Risk: {phishAnalysis.riskLevel}</span>
+                  <motion.div 
+                    initial={{ opacity: 0, y: 10 }} 
+                    animate={{ opacity: 1, y: 0 }} 
+                    transition={{ duration: 0.4, ease: [0.23, 1, 0.32, 1] }}
+                    className="mt-4 space-y-3"
+                  >
+                    {/* Warning Banner for High/Medium Risk */}
+                    {(phishAnalysis.riskLevel === 'High' || phishAnalysis.riskLevel === 'Medium') && (
+                      <motion.div 
+                        initial={{ scale: 0.95, opacity: 0 }}
+                        animate={{ scale: 1, opacity: 1 }}
+                        className={cn(
+                          "p-3 rounded-xl border flex items-center gap-3 animate-pulse",
+                          phishAnalysis.riskLevel === 'High' 
+                            ? "bg-cyber-red/10 border-cyber-red/30 text-cyber-red" 
+                            : "bg-cyber-yellow/10 border-cyber-yellow/30 text-cyber-yellow"
+                        )}
+                      >
+                        <ShieldAlert className="w-5 h-5 shrink-0" />
+                        <div className="text-[10px] font-bold leading-tight">
+                          {phishAnalysis.riskLevel === 'High' 
+                            ? "CRITICAL THREAT DETECTED: This link is highly likely to be a phishing attempt." 
+                            : "SUSPICIOUS ACTIVITY: Exercise extreme caution before interacting with this link."}
+                        </div>
+                      </motion.div>
+                    )}
+
+                    <div className="flex items-center justify-between px-1">
+                      <div className="flex items-center gap-2">
+                        {phishAnalysis.riskLevel === 'High' ? (
+                          <XCircle className="w-5 h-5 text-cyber-red" />
+                        ) : phishAnalysis.riskLevel === 'Medium' ? (
+                          <AlertTriangle className="w-5 h-5 text-cyber-yellow" />
+                        ) : (
+                          <CheckCircle2 className="w-5 h-5 text-cyber-green" />
+                        )}
+                        <span className={cn(
+                          "text-sm font-bold",
+                          phishAnalysis.riskLevel === 'High' ? "text-cyber-red" : 
+                          phishAnalysis.riskLevel === 'Medium' ? "text-cyber-yellow" : "text-cyber-green"
+                        )}>
+                          Risk: {phishAnalysis.riskLevel}
+                        </span>
+                      </div>
+                      <div className="text-[10px] font-mono opacity-40">
+                        SCAN_ID: {Math.random().toString(36).substring(7).toUpperCase()}
+                      </div>
                     </div>
-                    {phishAnalysis.reasons.map((r, i) => (
-                      <p key={i} className="text-[10px] text-cyber-red bg-cyber-red/5 p-2 rounded-lg border border-cyber-red/10">{r}</p>
-                    ))}
+
+                    <div className="space-y-2">
+                      <p className="text-[10px] font-bold uppercase text-white/30 ml-1">Analysis Findings</p>
+                      {phishAnalysis.reasons.length > 0 ? (
+                        <div className="space-y-1">
+                          {phishAnalysis.reasons.map((r, i) => (
+                            <motion.div 
+                              key={i}
+                              initial={{ x: -10, opacity: 0 }}
+                              animate={{ x: 0, opacity: 1 }}
+                              transition={{ delay: i * 0.1 }}
+                              className="text-[10px] text-white/80 bg-white/5 p-2 rounded-lg border border-white/10 flex items-start gap-2"
+                            >
+                              <div className="w-1 h-1 rounded-full bg-cyber-red mt-1.5 shrink-0" />
+                              {r}
+                            </motion.div>
+                          ))}
+                        </div>
+                      ) : (
+                        <div className="text-[10px] text-cyber-green bg-cyber-green/5 p-2 rounded-lg border border-cyber-green/10">
+                          No significant phishing indicators found in the provided content.
+                        </div>
+                      )}
+                    </div>
+
                     <div className="pt-2">
-                      <p className="text-[10px] font-bold uppercase text-white/30 mb-2">Prevention Tips</p>
-                      <ul className="text-[10px] space-y-1">
+                      <p className="text-[10px] font-bold uppercase text-white/30 mb-2 ml-1">Prevention Tips</p>
+                      <ul className="text-[10px] space-y-1.5">
                         {phishAnalysis.tips.map((t, i) => (
-                          <li key={i} className="flex items-start gap-1 text-cyber-blue">
-                            <ChevronRight className="w-3 h-3 mt-0.5" /> {t}
-                          </li>
+                          <motion.li 
+                            key={i} 
+                            initial={{ opacity: 0 }}
+                            animate={{ opacity: 1 }}
+                            transition={{ delay: 0.3 + (i * 0.1) }}
+                            className="flex items-start gap-2 text-cyber-blue/70"
+                          >
+                            <ChevronRight className="w-3 h-3 mt-0.5 text-cyber-blue" /> 
+                            {t}
+                          </motion.li>
                         ))}
                       </ul>
                     </div>
                   </motion.div>
                 )}
               </div>
+
+
+              {/* Removed Data Breach Monitor */}
+
+              {/* Removed File Risk Analyzer */}
             </section>
             
             <p className="text-[10px] text-center text-white/20 pb-4">
@@ -1407,7 +1642,7 @@ export default function App() {
                     </div>
                   </div>
                   
-                  <h2 className="text-2xl font-bold mt-4">{userDoc?.name || 'Cyber Agent'}</h2>
+                  <h2 className="text-2xl font-bold mt-4">{userDoc?.name || 'User'}</h2>
                   <p className="text-sm text-cyber-blue font-bold uppercase tracking-widest mt-1">
                     {(() => {
                       const xp = userDoc?.xp || 0;
@@ -1447,7 +1682,7 @@ export default function App() {
                 {/* Middle Section: Badges */}
                 <section className="space-y-4">
                   <h3 className="text-sm font-bold uppercase tracking-widest text-white/30 px-2">Badges Earned</h3>
-                  <div className="grid grid-cols-3 gap-3">
+                  <div className="grid grid-cols-2 xs:grid-cols-3 sm:grid-cols-4 gap-3">
                     {BADGE_DEFINITIONS.map((badge) => {
                       const isUnlocked = userDoc?.badges?.includes(badge.id);
                       const Icon = badge.icon;
@@ -1464,13 +1699,13 @@ export default function App() {
                             <div className="absolute inset-0 bg-gradient-to-br from-white/5 to-transparent pointer-events-none" />
                           )}
                           <div className={cn(
-                            "w-10 h-10 flex items-center justify-center mb-2 border-2",
+                            "w-8 h-8 md:w-10 md:h-10 flex items-center justify-center mb-2 border-2",
                             badge.shapeClass,
                             isUnlocked ? badge.colorClass : "bg-black/50 border-white/10 text-white/30"
                           )}>
-                            <Icon className="w-5 h-5" />
+                            <Icon className="w-4 h-4 md:w-5 md:h-5" />
                           </div>
-                          <h3 className="text-[10px] font-bold leading-tight">{badge.name}</h3>
+                          <h3 className="text-[9px] md:text-[10px] font-bold leading-tight">{badge.name}</h3>
                         </div>
                       );
                     })}
@@ -1606,40 +1841,40 @@ export default function App() {
       <nav className="fixed bottom-0 left-0 right-0 w-full md:max-w-screen-2xl mx-auto bg-cyber-card/90 backdrop-blur-xl border-t border-white/10 p-2 z-20">
         <div className="max-w-3xl mx-auto flex justify-around items-center w-full">
           <button 
-            onClick={() => { setActiveTab('home'); setShowSimulationCenter(false); }}
+            onClick={() => { setActiveTab('home'); }}
             className={cn(
               "flex flex-col items-center gap-1 p-2 rounded-xl transition-all",
-              activeTab === 'home' && !showSimulationCenter ? "text-cyber-blue" : "text-white/30"
+              activeTab === 'home' ? "text-cyber-blue" : "text-white/30"
             )}
           >
             <Home className="w-5 h-5" />
             <span className="text-[10px] font-bold uppercase">Home</span>
           </button>
           <button 
-            onClick={() => { setActiveTab('learningHub'); setShowSimulationCenter(false); }}
+            onClick={() => { setActiveTab('learningHub'); }}
             className={cn(
               "flex flex-col items-center gap-1 p-2 rounded-xl transition-all",
-              activeTab === 'learningHub' && !showSimulationCenter ? "text-cyber-blue" : "text-white/30"
+              activeTab === 'learningHub' ? "text-cyber-blue" : "text-white/30"
             )}
           >
             <BookOpen className="w-5 h-5" />
             <span className="text-[10px] font-bold uppercase">Learning Hub</span>
           </button>
           <button 
-            onClick={() => { setActiveTab('tools'); setShowSimulationCenter(false); }}
+            onClick={() => { setActiveTab('tools'); }}
             className={cn(
               "flex flex-col items-center gap-1 p-2 rounded-xl transition-all",
-              activeTab === 'tools' && !showSimulationCenter ? "text-cyber-blue" : "text-white/30"
+              activeTab === 'tools' ? "text-cyber-blue" : "text-white/30"
             )}
           >
             <Wrench className="w-5 h-5" />
             <span className="text-[10px] font-bold uppercase">Tools</span>
           </button>
           <button 
-            onClick={() => { setActiveTab('profile'); setShowSimulationCenter(false); }}
+            onClick={() => { setActiveTab('profile'); }}
             className={cn(
               "flex flex-col items-center gap-1 p-2 rounded-xl transition-all",
-              activeTab === 'profile' && !showSimulationCenter ? "text-cyber-blue" : "text-white/30"
+              activeTab === 'profile' ? "text-cyber-blue" : "text-white/30"
             )}
           >
             <User className="w-5 h-5" />
@@ -1647,6 +1882,107 @@ export default function App() {
           </button>
         </div>
       </nav>
+
+      {/* Health Check Modal */}
+      <AnimatePresence>
+        {showHealthCheck && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 20 }}
+              className="bg-cyber-card border border-white/10 rounded-3xl p-6 max-w-lg w-full shadow-2xl relative max-h-[90vh] overflow-y-auto"
+            >
+              <div className="flex justify-between items-center mb-6">
+                <div className="flex items-center gap-3">
+                  <ShieldCheck className="w-6 h-6 text-cyber-blue" />
+                  <h3 className="text-xl font-bold">Security Health Check</h3>
+                </div>
+                <button onClick={() => setShowHealthCheck(false)} className="p-2 hover:bg-white/10 rounded-full transition-colors">
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              {isRunningHealthCheck ? (
+                <div className="flex flex-col items-center justify-center py-12">
+                  <motion.div 
+                    animate={{ scale: [1, 1.1, 1], opacity: [0.5, 1, 0.5] }}
+                    transition={{ repeat: Infinity, duration: 2, ease: "easeInOut" }}
+                    className="mb-6"
+                  >
+                    <ShieldCheck className="w-20 h-20 text-cyber-blue" />
+                  </motion.div>
+                  <p className="text-cyber-blue font-bold animate-pulse mb-4">Scanning System Integrity...</p>
+                  <div className="w-full bg-white/10 rounded-full h-2 overflow-hidden">
+                    <motion.div 
+                      className="bg-cyber-blue h-full"
+                      initial={{ width: "0%" }}
+                      animate={{ width: "100%" }}
+                      transition={{ duration: 3, ease: "linear" }}
+                    />
+                  </div>
+                </div>
+              ) : (
+                healthCheckResult && (
+                  <div className="space-y-6">
+                  <div className={cn(
+                    "p-4 rounded-2xl border flex items-center gap-4",
+                    healthCheckResult.status === 'Secure' ? "bg-cyber-green/10 border-cyber-green/30 text-cyber-green" :
+                    healthCheckResult.status === 'Critical' ? "bg-cyber-red/10 border-cyber-red/30 text-cyber-red" :
+                    "bg-cyber-yellow/10 border-cyber-yellow/30 text-cyber-yellow"
+                  )}>
+                    <div className="p-3 rounded-full bg-black/20">
+                      {healthCheckResult.status === 'Secure' ? <CheckCircle2 className="w-8 h-8" /> :
+                       healthCheckResult.status === 'Critical' ? <XCircle className="w-8 h-8" /> :
+                       <AlertTriangle className="w-8 h-8" />}
+                    </div>
+                    <div>
+                      <p className="text-lg font-bold">{healthCheckResult.status} Status</p>
+                      <p className="text-xs opacity-80 leading-relaxed">{healthCheckResult.message}</p>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="bg-white/5 p-4 rounded-2xl border border-white/5">
+                      <p className="text-[10px] uppercase text-white/30 font-bold mb-1">Security Score</p>
+                      <p className="text-2xl font-bold text-cyber-blue">{healthCheckResult.score}%</p>
+                    </div>
+                    <div className="bg-white/5 p-4 rounded-2xl border border-white/5">
+                      <p className="text-[10px] uppercase text-white/30 font-bold mb-1">Scan Date</p>
+                      <p className="text-xs font-mono text-white/50">{new Date(healthCheckResult.timestamp).toLocaleDateString()}</p>
+                    </div>
+                  </div>
+
+                  <div className="space-y-3">
+                    <p className="text-xs font-bold uppercase tracking-wider text-white/30 ml-1">Recommendations</p>
+                    <div className="space-y-2">
+                      {healthCheckResult.recommendations.map((rec: string, i: number) => (
+                        <motion.div 
+                          key={i}
+                          initial={{ x: -10, opacity: 0 }}
+                          animate={{ x: 0, opacity: 1 }}
+                          transition={{ delay: i * 0.1 }}
+                          className="flex items-start gap-3 bg-white/5 p-3 rounded-xl border border-white/5"
+                        >
+                          <div className="w-1.5 h-1.5 rounded-full bg-cyber-blue mt-1.5 shrink-0" />
+                          <p className="text-xs text-white/70">{rec}</p>
+                        </motion.div>
+                      ))}
+                    </div>
+                  </div>
+
+                  <button 
+                    onClick={() => setShowHealthCheck(false)}
+                    className="w-full bg-cyber-blue text-black font-bold py-3 rounded-xl hover:bg-cyber-blue/80 transition-colors"
+                  >
+                    Done
+                  </button>
+                </div>
+              ))}
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
 
       {/* Logout Confirmation Modal */}
       <AnimatePresence>
@@ -1689,6 +2025,8 @@ export default function App() {
         )}
       </AnimatePresence>
       <Toaster position="top-center" richColors theme="dark" />
-    </div>
+    </motion.div>
+    )}
+    </AnimatePresence>
   );
 }
